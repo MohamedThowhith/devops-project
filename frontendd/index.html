@@ -1,35 +1,465 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>DevOps Project</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DevOps Project</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080c10;
+      --surface: #0e1520;
+      --border: #1a2535;
+      --accent: #00e5ff;
+      --accent2: #7c3aed;
+      --green: #00ff88;
+      --red: #ff4560;
+      --text: #cdd9e8;
+      --muted: #4a6280;
+      --font-display: 'Syne', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px; left: -200px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(124,58,237,.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      animation: drift 12s ease-in-out infinite alternate;
+    }
+
+    @keyframes drift {
+      to { transform: translate(120px, 80px); }
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px 60px;
+    }
+
+    header {
+      width: 100%;
+      max-width: 760px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 56px;
+      animation: fadeDown .6s ease both;
+    }
+
+    .logo { display: flex; align-items: center; gap: 10px; }
+
+    .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+
+    .logo-text {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1.1rem;
+      letter-spacing: -.5px;
+      color: #fff;
+    }
+
+    .logo-text span { color: var(--accent); }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: .7rem;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 5px 12px;
+      border-radius: 999px;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+    }
+
+    .status-badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background .4s;
+    }
+
+    .status-badge.online .dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .status-badge.error  .dot { background: var(--red);   box-shadow: 0 0 8px var(--red); }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 52px;
+      animation: fadeUp .7s .1s ease both;
+    }
+
+    .hero-tag {
+      display: inline-block;
+      font-size: .65rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      border: 1px solid rgba(0,229,255,.25);
+      padding: 4px 14px;
+      border-radius: 4px;
+      margin-bottom: 18px;
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: clamp(2.2rem, 6vw, 3.4rem);
+      line-height: 1.1;
+      color: #fff;
+      letter-spacing: -1.5px;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      margin-top: 14px;
+      font-size: .8rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .config-card {
+      width: 100%;
+      max-width: 760px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      animation: fadeUp .7s .2s ease both;
+    }
+
+    .config-label {
+      font-size: .65rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .config-input-wrap { flex: 1; position: relative; }
+
+    .config-input-wrap::before {
+      content: '//';
+      position: absolute;
+      left: 12px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--accent);
+      font-size: .75rem;
+      pointer-events: none;
+    }
+
+    #baseUrl {
+      width: 100%;
+      background: rgba(0,229,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      padding: 9px 12px 9px 30px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+
+    #baseUrl:focus {
+      border-color: rgba(0,229,255,.4);
+      box-shadow: 0 0 0 3px rgba(0,229,255,.07);
+    }
+
+    .actions {
+      width: 100%;
+      max-width: 760px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 28px;
+      animation: fadeUp .7s .3s ease both;
+    }
+
+    .btn {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: .8rem;
+      font-weight: 600;
+      padding: 18px 20px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: left;
+      transition: border-color .2s, transform .15s, box-shadow .2s;
+    }
+
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+    .btn:active { transform: translateY(0); }
+    .btn .btn-icon { font-size: 1.3rem; line-height: 1; }
+    .btn .btn-title { font-size: .9rem; color: #fff; }
+    .btn .btn-sub { font-size: .65rem; color: var(--muted); letter-spacing: .5px; }
+
+    .btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .btn-msg::after    { background: linear-gradient(135deg, rgba(0,229,255,.06), transparent); }
+    .btn-health::after { background: linear-gradient(135deg, rgba(0,255,136,.06), transparent); }
+    .btn-msg:hover     { border-color: rgba(0,229,255,.4); }
+    .btn-health:hover  { border-color: rgba(0,255,136,.4); }
+    .btn:hover::after  { opacity: 1; }
+
+    .terminal {
+      width: 100%;
+      max-width: 760px;
+      background: #060a0f;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      animation: fadeUp .7s .4s ease both;
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .t-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .t-dot:nth-child(1) { background: #ff5f57; }
+    .t-dot:nth-child(2) { background: #febc2e; }
+    .t-dot:nth-child(3) { background: #28c840; }
+
+    .t-title {
+      margin-left: auto;
+      font-size: .65rem;
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .terminal-body {
+      padding: 24px;
+      min-height: 120px;
+      font-size: .78rem;
+      line-height: 1.75;
+    }
+
+    .terminal-prompt { color: var(--muted); margin-bottom: 10px; }
+    .terminal-prompt span { color: var(--accent); }
+
+    #result { color: var(--green); white-space: pre-wrap; word-break: break-all; }
+    #result.error   { color: var(--red); }
+    #result.pending { color: var(--muted); font-style: italic; }
+
+    .cursor {
+      display: inline-block;
+      width: 8px; height: 14px;
+      background: var(--accent);
+      margin-left: 2px;
+      vertical-align: middle;
+      animation: blink-cursor .8s steps(1) infinite;
+    }
+
+    @keyframes blink-cursor { 50% { opacity: 0; } }
+
+    footer {
+      margin-top: 48px;
+      font-size: .65rem;
+      color: var(--muted);
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      animation: fadeUp .7s .5s ease both;
+    }
+
+    @keyframes fadeDown {
+      from { opacity: 0; transform: translateY(-14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 520px) {
+      .actions { grid-template-columns: 1fr; }
+      .config-card { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
 </head>
 <body>
+<div class="page">
 
-    <h1>🚀 DevOps Project UI</h1>
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🚀</div>
+      <div class="logo-text">Dev<span>Ops</span></div>
+    </div>
+    <div class="status-badge" id="statusBadge">
+      <span class="dot"></span>
+      <span id="statusText">Idle</span>
+    </div>
+  </header>
 
-    <button onclick="getMessage()">Get Message</button>
-    <button onclick="checkHealth()">Check Health</button>
+  <div class="hero">
+    <div class="hero-tag">Control Panel</div>
+    <h1>Pipeline <em>Monitor</em></h1>
+    <p>Connect to your backend · Inspect endpoints · Track health in real-time</p>
+  </div>
 
-    <p id="result"></p>
+  <div class="config-card">
+    <div class="config-label">Base URL</div>
+    <div class="config-input-wrap">
+      <input id="baseUrl" type="text"
+        value="https://devops-project-nvdd.onrender.com"
+        spellcheck="false"/>
+    </div>
+  </div>
 
-    <script>
-        
-        const BASE_URL = "https://devops-project-nvdd.onrender.com";
+  <div class="actions">
+    <button class="btn btn-msg" onclick="getMessage()">
+      <span class="btn-icon">📡</span>
+      <span class="btn-title">Get Message</span>
+      <span class="btn-sub">GET &nbsp;/</span>
+    </button>
+    <button class="btn btn-health" onclick="checkHealth()">
+      <span class="btn-icon">🩺</span>
+      <span class="btn-title">Check Health</span>
+      <span class="btn-sub">GET &nbsp;/health</span>
+    </button>
+  </div>
 
-        // Get message from "/"
-        async function getMessage() {
-            const res = await fetch(BASE_URL + "/");
-            const data = await res.text();
-            document.getElementById("result").innerText = data;
-        }
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="t-dot"></div>
+      <div class="t-dot"></div>
+      <div class="t-dot"></div>
+      <div class="t-title">Response Output</div>
+    </div>
+    <div class="terminal-body">
+      <div class="terminal-prompt">
+        <span>devops-cli</span> ~ awaiting command
+      </div>
+      <div id="result" class="pending">No request sent yet<span class="cursor"></span></div>
+    </div>
+  </div>
 
-        // Get health from "/health"
-        async function checkHealth() {
-            const res = await fetch(BASE_URL + "/health");
-            const data = await res.json();
-            document.getElementById("result").innerText = JSON.stringify(data);
-        }
-    </script>
+  <footer>DevOps Project · Render Deployment</footer>
+</div>
 
+<script>
+  const badge    = document.getElementById('statusBadge');
+  const badgeTxt = document.getElementById('statusText');
+  const resultEl = document.getElementById('result');
+
+  function getBase() {
+    const raw = document.getElementById('baseUrl').value.trim();
+    if (!raw) return null;
+    return raw.startsWith('http') ? raw : 'https://' + raw;
+  }
+
+  function setStatus(state, label) {
+    badge.className = 'status-badge ' + state;
+    badgeTxt.textContent = label;
+  }
+
+  function showResult(text, type = 'ok') {
+    resultEl.className = type === 'error' ? 'error' : '';
+    resultEl.innerHTML = escapeHtml(text) + '<span class="cursor"></span>';
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function getMessage() {
+    const base = getBase();
+    if (!base) { showResult('⚠ Enter a base URL first.', 'error'); return; }
+    setStatus('', 'Requesting…');
+    showResult('Fetching / …', 'pending');
+    try {
+      const res  = await fetch(base + '/');
+      const data = await res.text();
+      setStatus('online', 'Online');
+      showResult('✓ ' + data);
+    } catch (e) {
+      setStatus('error', 'Error');
+      showResult('✗ ' + e.message, 'error');
+    }
+  }
+
+  async function checkHealth() {
+    const base = getBase();
+    if (!base) { showResult('⚠ Enter a base URL first.', 'error'); return; }
+    setStatus('', 'Checking…');
+    showResult('Fetching /health …', 'pending');
+    try {
+      const res  = await fetch(base + '/health');
+      const data = await res.json();
+      setStatus('online', 'Healthy');
+      showResult(JSON.stringify(data, null, 2));
+    } catch (e) {
+      setStatus('error', 'Unhealthy');
+      showResult('✗ ' + e.message, 'error');
+    }
+  }
+</script>
 </body>
 </html>
