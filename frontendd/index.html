@@ -395,4 +395,330 @@
             </select>
           </div>
           <div class="form-field"><label>Branch</label><input id="depBranch" type="text" placeholder="main" value="main"/></div>
-          <button class="deploy-btn" id="deployBtn" onclick="triggerDeploy()
+          <button class="deploy-btn" id="deployBtn" onclick="triggerDeploy()">🚀 Deploy</button>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="table-header">
+          <div class="th">App / Branch</div><div class="th">Environment</div>
+          <div class="th">Status</div><div class="th">Duration</div>
+          <div class="th">Started</div><div class="th">Actions</div>
+        </div>
+        <div id="deploymentsTable">
+          <div class="empty-state"><div class="empty-icon">🛸</div>No deployments yet. Trigger one above!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LOGS -->
+    <div class="page" id="page-logs">
+      <div class="section-header">
+        <div><div class="section-title">Live Logs</div><div class="section-sub">Real-time deployment log stream</div></div>
+        <div class="ws-status"><div class="ws-dot" id="wsDot2"></div><span id="wsLabel2">Connecting...</span></div>
+      </div>
+      <div class="logs-select-bar">
+        <select id="logDepSelect" onchange="filterLogs()"><option value="all">All Deployments</option></select>
+        <button class="action-btn" onclick="clearLogs()">Clear</button>
+      </div>
+      <div class="terminal">
+        <div class="terminal-bar">
+          <div class="t-dot"></div><div class="t-dot"></div><div class="t-dot"></div>
+          <div class="t-label" id="logCount">0 lines</div>
+        </div>
+        <div class="terminal-body" id="logBody">
+          <div class="log-line"><span class="log-msg info">Waiting for deployment logs...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALERTS -->
+    <div class="page" id="page-alerts">
+      <div class="section-header">
+        <div><div class="section-title">Alerts</div><div class="section-sub">Deployment failure notifications</div></div>
+        <button class="action-btn" onclick="markAllRead()">Mark all read</button>
+      </div>
+      <div class="alert-list" id="alertList">
+        <div class="empty-state"><div class="empty-icon">🔕</div>No alerts. All systems go!</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toastContainer"></div>
+
+<script>
+  const BASE_URL = "https://devops-project-nvdd.onrender.com";
+  const WS_URL   = BASE_URL.replace("https","wss").replace("http","ws");
+
+  let token = localStorage.getItem("dt_token") || null;
+  let currentUser = null;
+  let ws = null;
+  let allLogs = [];
+  let refreshTimer = null;
+
+  window.onload = () => { if (token) initApp(); };
+
+  // AUTH
+  function switchAuthTab(tab) {
+    document.querySelectorAll('.auth-tab').forEach((t,i) =>
+      t.classList.toggle('active',(i===0&&tab==='login')||(i===1&&tab==='register')));
+    document.getElementById('loginForm').style.display    = tab==='login'    ? 'block':'none';
+    document.getElementById('registerForm').style.display = tab==='register' ? 'block':'none';
+    document.getElementById('authError').style.display = 'none';
+  }
+
+  async function login() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const pass  = document.getElementById('loginPass').value;
+    if (!email||!pass) return showAuthError('Please fill in all fields');
+    try {
+      const res = await apiFetch('/auth/login','POST',{email,password:pass},false);
+      token = res.token; currentUser = res.user;
+      localStorage.setItem('dt_token',token);
+      initApp();
+    } catch(e){ showAuthError(e.message); }
+  }
+
+  async function register() {
+    const name  = document.getElementById('regName').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const pass  = document.getElementById('regPass').value;
+    if (!name||!email||!pass) return showAuthError('Please fill in all fields');
+    try {
+      const res = await apiFetch('/auth/register','POST',{name,email,password:pass},false);
+      token = res.token; currentUser = res.user;
+      localStorage.setItem('dt_token',token);
+      initApp();
+    } catch(e){ showAuthError(e.message); }
+  }
+
+  function logout() {
+    token=null; currentUser=null;
+    localStorage.removeItem('dt_token');
+    if(ws) ws.close();
+    if(refreshTimer) clearInterval(refreshTimer);
+    document.getElementById('app').style.display='none';
+    document.getElementById('authScreen').style.display='flex';
+  }
+
+  function showAuthError(msg) {
+    const el=document.getElementById('authError');
+    el.textContent=msg; el.style.display='block';
+  }
+
+  // INIT
+  async function initApp() {
+    try { currentUser = await apiFetch('/auth/me','GET',null,true); }
+    catch { logout(); return; }
+    document.getElementById('authScreen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    document.getElementById('userName').textContent=currentUser.name;
+    document.getElementById('userAvatar').textContent=currentUser.name[0].toUpperCase();
+    connectWS();
+    loadAll();
+    refreshTimer = setInterval(loadAll,8000);
+  }
+
+  async function loadAll() {
+    await Promise.all([loadMetrics(),loadDeployments(),loadAlerts()]);
+  }
+
+  // WEBSOCKET
+  function connectWS() {
+    try {
+      ws = new WebSocket(WS_URL);
+      ws.onopen  = () => setWsStatus(true);
+      ws.onclose = () => { setWsStatus(false); setTimeout(connectWS,3000); };
+      ws.onerror = () => setWsStatus(false);
+      ws.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if(data.type==='log')                addLog(data.deploymentId,data.message,data.timestamp);
+        else if(data.type==='alert')         { showToast('⚠️ '+data.alert.message,'error'); loadAlerts(); }
+        else if(data.type==='status_update') { loadDeployments(); loadMetrics(); }
+      };
+    } catch { setWsStatus(false); }
+  }
+
+  function setWsStatus(ok) {
+    ['wsDot','wsDot2'].forEach(id => { const el=document.getElementById(id); if(el) el.classList.toggle('connected',ok); });
+    ['wsLabel','wsLabel2'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=ok?'Live':'Reconnecting...'; });
+  }
+
+  // LOGS
+  function addLog(depId,message,timestamp) {
+    allLogs.push({depId,message,timestamp});
+    if(allLogs.length>500) allLogs.shift();
+    renderLogs(); updateLogSelect();
+  }
+
+  function renderLogs() {
+    const filter = document.getElementById('logDepSelect').value;
+    const body   = document.getElementById('logBody');
+    const logs   = filter==='all' ? allLogs : allLogs.filter(l=>l.depId===filter);
+    if(!logs.length){ body.innerHTML='<div class="log-line"><span class="log-msg info">No logs yet...</span></div>'; return; }
+    body.innerHTML = logs.map(l => {
+      const t   = new Date(l.timestamp).toLocaleTimeString();
+      const cls = l.message.includes('❌')||l.message.includes('failed') ? 'error'
+                : l.message.includes('🔗')||l.message.includes('📦')    ? 'info' : '';
+      return `<div class="log-line"><span class="log-time">${t}</span><span class="log-msg ${cls}">${l.message}</span></div>`;
+    }).join('');
+    body.scrollTop = body.scrollHeight;
+    document.getElementById('logCount').textContent = logs.length+' lines';
+  }
+
+  function filterLogs(){ renderLogs(); }
+  function clearLogs(){ allLogs=[]; renderLogs(); }
+
+  function updateLogSelect() {
+    const sel    = document.getElementById('logDepSelect');
+    const depIds = [...new Set(allLogs.map(l=>l.depId))];
+    const cur    = sel.value;
+    sel.innerHTML = '<option value="all">All Deployments</option>';
+    depIds.forEach(id => {
+      const opt=document.createElement('option');
+      opt.value=id; opt.textContent=id.slice(0,8)+'...';
+      sel.appendChild(opt);
+    });
+    sel.value = cur;
+  }
+
+  // DEPLOYMENTS
+  async function loadDeployments() {
+    try { const deps = await apiFetch('/deployments','GET',null,true); renderDeployments(deps); } catch {}
+  }
+
+  function renderDeployments(deps) {
+    const el = document.getElementById('deploymentsTable');
+    if(!deps.length){
+      el.innerHTML='<div class="empty-state"><div class="empty-icon">🛸</div>No deployments yet. Trigger one above!</div>';
+      return;
+    }
+    el.innerHTML = deps.map(d=>`
+      <div class="table-row">
+        <div class="td name">${d.name}<br><span style="font-size:.62rem;color:var(--muted);font-weight:400">${d.branch}</span></div>
+        <div class="td"><span class="env-tag ${d.environment}">${d.environment}</span></div>
+        <div class="td"><span class="status-badge ${d.status}"><span class="dot"></span>${d.status}</span></div>
+        <div class="td muted">${d.duration?d.duration+'s':'—'}</div>
+        <div class="td muted" style="font-size:.65rem">${new Date(d.startedAt).toLocaleString()}</div>
+        <div class="td"><button class="action-btn del" onclick="deleteDeployment('${d.id}')">Delete</button></div>
+      </div>`).join('');
+  }
+
+  async function triggerDeploy() {
+    const name   = document.getElementById('depName').value.trim();
+    const env    = document.getElementById('depEnv').value;
+    const branch = document.getElementById('depBranch').value.trim()||'main';
+    if(!name) return showToast('Please enter an app name','error');
+    const btn = document.getElementById('deployBtn');
+    btn.disabled=true; btn.textContent='⏳ Deploying...';
+    try {
+      await apiFetch('/deployments','POST',{name,environment:env,branch},true);
+      showToast(`🚀 Deployment of "${name}" started!`,'success');
+      document.getElementById('depName').value='';
+      loadDeployments(); loadMetrics();
+    } catch(e){ showToast('Deploy failed: '+e.message,'error'); }
+    finally{ btn.disabled=false; btn.textContent='🚀 Deploy'; }
+  }
+
+  async function deleteDeployment(id) {
+    try { await apiFetch('/deployments/'+id,'DELETE',null,true); showToast('Deployment deleted','info'); loadDeployments(); loadMetrics(); }
+    catch(e){ showToast(e.message,'error'); }
+  }
+
+  // METRICS
+  async function loadMetrics() {
+    try {
+      const m = await apiFetch('/metrics','GET',null,true);
+      document.getElementById('metricTotal').textContent   = m.total;
+      document.getElementById('metricSuccess').textContent = m.success;
+      document.getElementById('metricFailed').textContent  = m.failed;
+      document.getElementById('metricRate').textContent    = m.total>0 ? m.successRate+'%':'—';
+      document.getElementById('metricAvg').textContent     = m.avgDuration;
+      renderChart(m.recent);
+    } catch {}
+  }
+
+  function renderChart(recent) {
+    const el = document.getElementById('chartBars');
+    if(!recent||!recent.length){ el.innerHTML='<div class="empty-state" style="width:100%;padding:16px">No data yet</div>'; return; }
+    const maxDur = Math.max(...recent.map(r=>r.duration||10),10);
+    el.innerHTML = recent.map(r=>{
+      const h   = Math.max(8,Math.round(((r.duration||5)/maxDur)*72));
+      const cls = r.status==='success'?'success-bar':r.status==='failed'?'failed-bar':'running-bar';
+      return `<div class="chart-bar-wrap">
+        <div class="chart-bar ${cls}" style="height:${h}px" title="${r.name} — ${r.status} (${r.duration||'?'}s)"></div>
+        <div class="chart-bar-label">${r.name.slice(0,6)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ALERTS
+  async function loadAlerts() {
+    try {
+      const als = await apiFetch('/alerts','GET',null,true);
+      renderAlerts(als);
+      const unread = als.filter(a=>!a.read).length;
+      const countEl = document.getElementById('alertCount');
+      countEl.textContent=unread;
+      countEl.classList.toggle('hidden',unread===0);
+    } catch {}
+  }
+
+  function renderAlerts(als) {
+    const el = document.getElementById('alertList');
+    if(!als.length){ el.innerHTML='<div class="empty-state"><div class="empty-icon">🔕</div>No alerts. All systems go!</div>'; return; }
+    el.innerHTML = als.map(a=>`
+      <div class="alert-item ${a.read?'read':''}">
+        <div class="alert-icon">⚠️</div>
+        <div class="alert-content">
+          <div class="alert-msg">${a.message}</div>
+          <div class="alert-meta">${new Date(a.createdAt).toLocaleString()}</div>
+        </div>
+        <div class="alert-actions">
+          ${!a.read?`<button class="action-btn" onclick="markRead('${a.id}')">Mark read</button>`:''}
+          <button class="action-btn del" onclick="dismissAlert('${a.id}')">Dismiss</button>
+        </div>
+      </div>`).join('');
+  }
+
+  async function markRead(id){ try{ await apiFetch('/alerts/'+id+'/read','PATCH',null,true); loadAlerts(); }catch{} }
+  async function dismissAlert(id){ try{ await apiFetch('/alerts/'+id,'DELETE',null,true); loadAlerts(); }catch{} }
+  async function markAllRead(){
+    try{
+      const als = await apiFetch('/alerts','GET',null,true);
+      await Promise.all(als.filter(a=>!a.read).map(a=>apiFetch('/alerts/'+a.id+'/read','PATCH',null,true)));
+      loadAlerts();
+    }catch{}
+  }
+
+  // NAV
+  function showPage(name) {
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('page-'+name).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach((b,i)=>{
+      b.classList.toggle('active',['dashboard','deployments','logs','alerts'][i]===name);
+    });
+    if(name==='alerts') loadAlerts();
+  }
+
+  // API
+  async function apiFetch(path,method='GET',body=null,auth=false){
+    const headers={'Content-Type':'application/json'};
+    if(auth&&token) headers['Authorization']='Bearer '+token;
+    const res  = await fetch(BASE_URL+path,{method,headers,body:body?JSON.stringify(body):undefined});
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error||'Request failed');
+    return data;
+  }
+
+  // TOAST
+  function showToast(msg,type='info'){
+    const el=document.createElement('div');
+    el.className='toast '+type; el.textContent=msg;
+    document.getElementById('toastContainer').appendChild(el);
+    setTimeout(()=>el.remove(),4000);
+  }
+</script>
+</body>
+</html>
