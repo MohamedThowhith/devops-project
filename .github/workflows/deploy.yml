@@ -18,5 +18,8 @@ jobs:
       - name: Run Container
         run: docker run -d -p 3000:3000 app
 
+      - name: Wait for app
+        run: sleep 10
+
       - name: Test API
         run: curl http://localhost:3000/health
