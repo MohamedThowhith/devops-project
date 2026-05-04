@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Full CI/CD Pipeline
 
 on:
   push:
@@ -6,20 +6,42 @@ on:
       - main
 
 jobs:
-  build:
+  build-test-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      # 1️⃣ Checkout
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Build Docker
+      # 2️⃣ Setup Node
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      # 3️⃣ Install deps
+      - name: Install dependencies
+        run: npm install
+
+      # 4️⃣ Run app (local test)
+      - name: Start server
+        run: |
+          node index.js &
+          sleep 5
+
+      # 5️⃣ Test API
+      - name: Test health API
+        run: curl http://localhost:3000/health
+
+      # 6️⃣ Build Docker (optional)
+      - name: Build Docker image
         run: docker build -t app .
 
-      - name: Run Container
-        run: docker run -d -p 3000:3000 app
+      # 7️⃣ Deploy to Render
+      - name: Deploy Backend (Render)
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
 
-      - name: Wait for app
-        run: sleep 10
-
-      - name: Test API
-        run: curl http://localhost:3000/health
+      # 8️⃣ Deploy Frontend (Vercel)
+      - name: Deploy Frontend (Vercel)
+        run: curl -X POST ${{ secrets.VERCEL_DEPLOY_HOOK }}
