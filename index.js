@@ -6,40 +6,67 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Use Render environment variable
+// Database connection
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false }
 });
 
-// Create table
+// 🟢 INIT ROUTE (create table)
 app.get("/init", async (req, res) => {
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS expenses (
-            id SERIAL PRIMARY KEY,
-            title TEXT,
-            amount INT
-        )
-    `);
-    res.send("Table created");
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS expenses (
+                id SERIAL PRIMARY KEY,
+                title TEXT,
+                amount INT
+            )
+        `);
+        res.send("Table created");
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error creating table");
+    }
 });
 
-// Add expense
+// 🟢 ADD EXPENSE
 app.post("/add-expense", async (req, res) => {
-    const { title, amount } = req.body;
-    await pool.query(
-        "INSERT INTO expenses (title, amount) VALUES ($1, $2)",
-        [title, amount]
-    );
-    res.send("Expense added");
+    try {
+        const { title, amount } = req.body;
+        await pool.query(
+            "INSERT INTO expenses (title, amount) VALUES ($1, $2)",
+            [title, amount]
+        );
+        res.send("Expense added");
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error adding expense");
+    }
 });
 
-// Get all expenses
+// 🟢 GET ALL EXPENSES
 app.get("/expenses", async (req, res) => {
-    const result = await pool.query("SELECT * FROM expenses ORDER BY id DESC");
-    res.json(result.rows);
+    try {
+        const result = await pool.query(
+            "SELECT * FROM expenses ORDER BY id DESC"
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).send("Error fetching expenses");
+    }
 });
 
+// Basic routes
+app.get("/", (req, res) => {
+    res.send("DevOps Expense Tracker Running 🚀");
+});
+
+app.get("/health", (req, res) => {
+    res.json({ status: "OK" });
+});
+
+// Start server
 app.listen(3000, () => {
     console.log("Server running on port 3000");
 });
