@@ -2,175 +2,668 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Expense Tracker</title>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ledger — Expense Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&display=swap" rel="stylesheet" />
 <style>
-body {
-  font-family: Arial;
-  background: #111;
-  color: white;
-  padding: 20px;
-}
-input, select, button {
-  padding: 8px;
-  margin: 5px;
-}
-.card {
-  background: #1c1c1c;
-  padding: 15px;
-  margin-bottom: 15px;
-  border-radius: 8px;
-}
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0e0c;
+    --surface: #1a1916;
+    --surface2: #242220;
+    --surface3: #2e2b28;
+    --border: #3a3630;
+    --text: #f0ede8;
+    --text2: #a09a92;
+    --text3: #6a6560;
+    --accent: #d4a853;
+    --accent2: #e8c07a;
+    --danger: #c0574a;
+    --danger-soft: #3d1f1b;
+    --success: #5a9e6f;
+    --success-soft: #1b3024;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.5;
+  }
+
+  .app { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
+
+  .header {
+    padding: 48px 0 40px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+  .header-logo { display: flex; align-items: baseline; gap: 12px; }
+  .logo-text {
+    font-family: 'DM Serif Display', serif;
+    font-size: 36px;
+    letter-spacing: -0.5px;
+    color: var(--text);
+    line-height: 1;
+  }
+  .logo-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(212,168,83,0.12);
+    border: 1px solid rgba(212,168,83,0.25);
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .header-meta { font-size: 13px; color: var(--text3); font-family: 'DM Mono', monospace; }
+
+  .config-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .config-bar label { font-size: 12px; color: var(--text3); white-space: nowrap; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.06em; }
+  .config-bar input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .config-bar input:focus { border-color: var(--accent); }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 40px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .stat-card:hover { border-color: var(--border); transform: translateY(-1px); }
+  .stat-card.accent { border-color: rgba(212,168,83,0.3); background: rgba(212,168,83,0.05); }
+  .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); font-family: 'DM Mono', monospace; margin-bottom: 10px; }
+  .stat-value { font-family: 'DM Serif Display', serif; font-size: 26px; color: var(--text); line-height: 1; }
+  .stat-value.gold { color: var(--accent2); }
+  .stat-value.small { font-size: 20px; }
+
+  .main-grid { display: grid; grid-template-columns: 380px 1fr; gap: 24px; align-items: start; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .panel-title { font-family: 'DM Serif Display', serif; font-size: 18px; color: var(--text); }
+  .panel-body { padding: 20px; }
+
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); font-family: 'DM Mono', monospace; margin-bottom: 7px; }
+  .form-input, .form-select, .form-textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .form-input:focus, .form-select:focus, .form-textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(212,168,83,0.1);
+  }
+  .form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L6 7L11 1' stroke='%236a6560' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
+  .form-textarea { resize: vertical; min-height: 80px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: all 0.18s;
+    font-family: 'DM Sans', sans-serif;
+    white-space: nowrap;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #1a1411;
+    font-weight: 600;
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+  }
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(212,168,83,0.25); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-ghost { background: transparent; color: var(--text2); border-color: var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-danger { background: var(--danger-soft); color: var(--danger); border-color: rgba(192,87,74,0.25); }
+  .btn-danger:hover { background: rgba(192,87,74,0.2); }
+  .btn-sm { padding: 6px 12px; font-size: 13px; }
+  .btn-icon { padding: 7px; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
+
+  .expense-list { display: flex; flex-direction: column; gap: 0; }
+  .expense-item {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    transition: background 0.15s;
+    animation: slideIn 0.25s ease;
+  }
+  .expense-item:last-child { border-bottom: none; }
+  .expense-item:hover { background: var(--surface2); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .expense-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .expense-main { flex: 1; min-width: 0; }
+  .expense-title { font-weight: 500; color: var(--text); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .expense-meta { font-size: 12px; color: var(--text3); margin-top: 2px; display: flex; gap: 8px; align-items: center; }
+  .expense-cat { font-family: 'DM Mono', monospace; font-size: 11px; padding: 1px 6px; border-radius: 3px; background: var(--surface3); color: var(--text2); }
+  .expense-amount { font-family: 'DM Mono', monospace; font-size: 15px; font-weight: 500; color: var(--accent2); flex-shrink: 0; }
+  .expense-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+  .expense-item:hover .expense-actions { opacity: 1; }
+
+  .pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px 20px; border-top: 1px solid var(--border); }
+  .page-info { font-size: 13px; color: var(--text3); font-family: 'DM Mono', monospace; }
+
+  .toast-container { position: fixed; top: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; gap: 8px; }
+  .toast {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    animation: toastIn 0.25s ease;
+    min-width: 260px;
+    max-width: 360px;
+  }
+  .toast.success { border-color: rgba(90,158,111,0.4); }
+  .toast.error { border-color: rgba(192,87,74,0.4); }
+  .toast-icon { font-size: 16px; flex-shrink: 0; }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.18s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    width: 100%;
+    max-width: 440px;
+    animation: scaleIn 0.2s ease;
+  }
+  @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 22px; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+
+  .empty { padding: 60px 20px; text-align: center; color: var(--text3); }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-text { font-size: 14px; }
+
+  .spinner { width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-row { display: flex; justify-content: center; padding: 40px; }
+
+  .cat-list { display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; }
+  .cat-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--surface2); border-radius: var(--radius-sm); }
+  .cat-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .cat-name { flex: 1; font-size: 14px; }
+  .cat-add-row { display: flex; gap: 8px; margin-top: 12px; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+  @media (max-width: 768px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .main-grid { grid-template-columns: 1fr; }
+    .header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .expense-actions { opacity: 1; }
+  }
 </style>
 </head>
-
 <body>
 
-<h2>💸 Expense Tracker</h2>
+<div class="app">
+  <div class="header">
+    <div class="header-logo">
+      <span class="logo-text">Ledger</span>
+      <span class="logo-badge">Personal Finance</span>
+    </div>
+    <div class="header-meta" id="headerDate"></div>
+  </div>
 
-<div class="card">
-  <input id="title" placeholder="Title"/>
-  <input id="amount" type="number" placeholder="Amount"/>
-  <select id="category"></select>
-  <button onclick="addExpense()">Add</button>
+  <div class="config-bar">
+    <label>API Base URL</label>
+    <input type="text" id="baseUrl" placeholder="http://localhost:3000" value="http://localhost:3000" />
+    <button class="btn btn-ghost btn-sm" onclick="initDB()">Init DB</button>
+    <button class="btn btn-ghost btn-sm" onclick="loadAll()">↻ Refresh</button>
+  </div>
+
+  <div class="summary-grid">
+    <div class="stat-card accent">
+      <div class="stat-label">Total Spent</div>
+      <div class="stat-value gold" id="statTotal">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Transactions</div>
+      <div class="stat-value" id="statCount">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Average</div>
+      <div class="stat-value small" id="statAvg">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Highest</div>
+      <div class="stat-value small" id="statMax">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Lowest</div>
+      <div class="stat-value small" id="statMin">—</div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <div>
+      <div class="panel" id="formPanel">
+        <div class="panel-header">
+          <span class="panel-title" id="formTitle">Add Expense</span>
+          <button class="btn btn-ghost btn-sm" id="cancelEditBtn" style="display:none" onclick="cancelEdit()">Cancel</button>
+        </div>
+        <div class="panel-body">
+          <div class="form-group">
+            <label class="form-label">Title</label>
+            <input class="form-input" id="expTitle" placeholder="e.g. Coffee at Blue Bottle" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Amount ($)</label>
+              <input class="form-input" id="expAmount" type="number" step="0.01" min="0.01" placeholder="0.00" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Category</label>
+              <select class="form-select" id="expCategory"></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Note <span style="color:var(--text3)">(optional)</span></label>
+            <textarea class="form-textarea" id="expNote" placeholder="Any additional details..."></textarea>
+          </div>
+          <button class="btn btn-primary" id="submitBtn" onclick="submitExpense()">
+            <span>Add Expense</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:16px">
+        <div class="panel-header">
+          <span class="panel-title">Categories</span>
+        </div>
+        <div class="panel-body">
+          <div class="cat-list" id="catList"></div>
+          <div class="cat-add-row">
+            <input class="form-input" id="newCatName" placeholder="Category name" style="flex:1" />
+            <input type="color" id="newCatColor" value="#d4a853" style="width:42px;height:42px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);cursor:pointer;padding:2px;" />
+            <button class="btn btn-ghost btn-sm" onclick="addCategory()">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Transactions</span>
+        <span id="listCount" style="font-size:13px;color:var(--text3);font-family:'DM Mono',monospace"></span>
+      </div>
+      <div id="expenseListBody">
+        <div class="loading-row"><div class="spinner"></div></div>
+      </div>
+      <div class="pagination" id="pagination" style="display:none">
+        <button class="btn btn-ghost btn-sm" id="prevBtn" onclick="changePage(-1)">← Prev</button>
+        <span class="page-info" id="pageInfo"></span>
+        <button class="btn btn-ghost btn-sm" id="nextBtn" onclick="changePage(1)">Next →</button>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div class="card">
-  <h3>Expenses</h3>
-  <div id="list"></div>
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="modal-overlay" id="deleteModal" style="display:none">
+  <div class="modal">
+    <div class="modal-title">Delete Expense?</div>
+    <p style="color:var(--text2);font-size:14px">This action cannot be undone. The expense will be permanently removed.</p>
+    <div class="modal-actions">
+      <button class="btn btn-danger" style="flex:1;justify-content:center" onclick="confirmDelete()">Delete</button>
+      <button class="btn btn-ghost" style="flex:1;justify-content:center" onclick="closeDeleteModal()">Cancel</button>
+    </div>
+  </div>
 </div>
 
 <script>
-const BASE_URL = "http://localhost:3000"; // 🔴 CHANGE if deployed
+let baseUrl = () => document.getElementById('baseUrl').value.replace(/\/$/, '');
+let currentPage = 1;
+let totalPages = 1;
+let categories = [];
+let editingId = null;
+let deleteTargetId = null;
+const PAGE_SIZE = 15;
 
-/* =========================
-   INIT
-========================= */
-async function init() {
-  try {
-    await fetch(`${BASE_URL}/init`);
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('headerDate').textContent = new Date().toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  loadAll();
+});
 
-    await loadCategories();
-    await loadExpenses();
-
-  } catch (e) {
-    console.error(e);
-    alert("App failed to start");
-  }
+async function loadAll() {
+  await Promise.all([loadCategories(), loadExpenses(), loadSummary()]);
 }
 
-/* =========================
-   SAFE FETCH
-========================= */
-async function safeFetch(url, options = {}) {
+async function initDB() {
   try {
-    const res = await fetch(url, options);
-    let data;
-
-    try {
-      data = await res.json();
-    } catch {
-      throw new Error("Invalid JSON response");
-    }
-
-    if (!res.ok) {
-      throw new Error(data.error || (data.errors && data.errors.join(", ")) || "Error");
-    }
-
-    return data;
-
-  } catch (err) {
-    alert(err.message);
-    throw err;
-  }
+    await apiFetch('/init');
+    toast('Database initialized ✅', 'success');
+    loadAll();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
-/* =========================
-   LOAD CATEGORIES
-========================= */
+async function apiFetch(path, options = {}) {
+  const res = await fetch(baseUrl() + path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data.errors ? data.errors.join(', ') : (data.error || 'Unknown error');
+    throw new Error(msg);
+  }
+  return data;
+}
+
+async function loadSummary() {
+  try {
+    const s = await apiFetch('/summary');
+    document.getElementById('statTotal').textContent = fmt(s.total);
+    document.getElementById('statCount').textContent = s.count;
+    document.getElementById('statAvg').textContent = fmt(s.average);
+    document.getElementById('statMax').textContent = fmt(s.max);
+    document.getElementById('statMin').textContent = fmt(s.min);
+  } catch(e) {}
+}
+
 async function loadCategories() {
-  const data = await safeFetch(`${BASE_URL}/categories`);
-
-  const sel = document.getElementById("category");
-  sel.innerHTML = "";
-
-  data.forEach(c => {
-    const opt = document.createElement("option");
-    opt.value = c.name;
-    opt.textContent = c.name;
-    sel.appendChild(opt);
-  });
+  try {
+    categories = await apiFetch('/categories');
+    renderCatList();
+    renderCatSelect();
+  } catch(e) {}
 }
 
-/* =========================
-   LOAD EXPENSES
-========================= */
-async function loadExpenses() {
-  const data = await safeFetch(`${BASE_URL}/expenses`);
-
-  const list = document.getElementById("list");
-  list.innerHTML = "";
-
-  data.data.forEach(e => {
-    const div = document.createElement("div");
-    div.style.marginBottom = "8px";
-
-    div.innerHTML = `
-      ${e.title} - ₹${e.amount} (${e.category})
-      <button onclick="deleteExpense(${e.id})">❌</button>
-    `;
-
-    list.appendChild(div);
-  });
+function renderCatList() {
+  const el = document.getElementById('catList');
+  if (!categories.length) { el.innerHTML = '<div style="color:var(--text3);font-size:13px">No categories yet.</div>'; return; }
+  el.innerHTML = categories.map(c => `
+    <div class="cat-item">
+      <div class="cat-dot" style="background:${c.color}"></div>
+      <span class="cat-name">${esc(c.name)}</span>
+      ${c.name !== 'General' ? `<button class="btn btn-ghost btn-sm btn-icon" title="Delete" onclick="deleteCategory(${c.id})">✕</button>` : ''}
+    </div>
+  `).join('');
 }
 
-/* =========================
-   ADD EXPENSE
-========================= */
-async function addExpense() {
-  const title = document.getElementById("title").value.trim();
-  const amount = document.getElementById("amount").value;
-  const category = document.getElementById("category").value;
+function renderCatSelect() {
+  const sel = document.getElementById('expCategory');
+  const prev = sel.value;
+  sel.innerHTML = categories.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('');
+  if (prev) sel.value = prev;
+}
 
-  if (!title || !amount) {
-    alert("Enter title & amount");
+async function addCategory() {
+  const name = document.getElementById('newCatName').value.trim();
+  const color = document.getElementById('newCatColor').value;
+  if (!name) { toast('Enter a category name', 'error'); return; }
+  try {
+    await apiFetch('/categories', { method:'POST', body: JSON.stringify({ name, color }) });
+    document.getElementById('newCatName').value = '';
+    toast(`Category "${name}" added`, 'success');
+    loadCategories();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteCategory(id) {
+  try {
+    await apiFetch(`/categories/${id}`, { method:'DELETE' });
+    toast('Category deleted', 'success');
+    loadCategories();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadExpenses(page = currentPage) {
+  const listBody = document.getElementById('expenseListBody');
+  listBody.innerHTML = '<div class="loading-row"><div class="spinner"></div></div>';
+  try {
+    const data = await apiFetch(`/expenses?page=${page}&limit=${PAGE_SIZE}`);
+    currentPage = data.pagination.page;
+    totalPages = data.pagination.totalPages;
+    document.getElementById('listCount').textContent = `${data.pagination.total} total`;
+    renderExpenses(data.data);
+    renderPagination(data.pagination);
+  } catch(e) {
+    listBody.innerHTML = `<div class="empty"><div class="empty-icon">⚠</div><div class="empty-text">${esc(e.message)}</div></div>`;
+  }
+}
+
+function renderExpenses(expenses) {
+  const listBody = document.getElementById('expenseListBody');
+  if (!expenses.length) {
+    listBody.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No expenses yet. Add your first one!</div></div>';
     return;
   }
-
-  await safeFetch(`${BASE_URL}/add-expense`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title,
-      amount: Number(amount),
-      category
-    })
-  });
-
-  document.getElementById("title").value = "";
-  document.getElementById("amount").value = "";
-
-  loadExpenses();
+  const catColorMap = Object.fromEntries(categories.map(c => [c.name, c.color]));
+  listBody.innerHTML = `<div class="expense-list">${expenses.map(e => `
+    <div class="expense-item">
+      <div class="expense-color-dot" style="background:${catColorMap[e.category] || '#6366f1'}"></div>
+      <div class="expense-main">
+        <div class="expense-title" title="${esc(e.title)}">${esc(e.title)}</div>
+        <div class="expense-meta">
+          <span class="expense-cat">${esc(e.category)}</span>
+          <span>${fmtDate(e.created_at)}</span>
+          ${e.note ? `<span style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.note)}">· ${esc(e.note)}</span>` : ''}
+        </div>
+      </div>
+      <div class="expense-amount">${fmt(e.amount)}</div>
+      <div class="expense-actions">
+        <button class="btn btn-ghost btn-sm btn-icon" title="Edit" onclick="startEdit(${e.id})">✎</button>
+        <button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="openDeleteModal(${e.id})">✕</button>
+      </div>
+    </div>
+  `).join('')}</div>`;
 }
 
-/* =========================
-   DELETE
-========================= */
-async function deleteExpense(id) {
-  if (!confirm("Delete?")) return;
-
-  await safeFetch(`${BASE_URL}/delete-expense/${id}`, {
-    method: "DELETE"
-  });
-
-  loadExpenses();
+function renderPagination(p) {
+  const pg = document.getElementById('pagination');
+  if (p.totalPages <= 1) { pg.style.display = 'none'; return; }
+  pg.style.display = 'flex';
+  document.getElementById('pageInfo').textContent = `${p.page} / ${p.totalPages}`;
+  document.getElementById('prevBtn').disabled = p.page <= 1;
+  document.getElementById('nextBtn').disabled = p.page >= p.totalPages;
 }
 
-init();
+function changePage(dir) {
+  const newPage = currentPage + dir;
+  if (newPage < 1 || newPage > totalPages) return;
+  loadExpenses(newPage);
+}
+
+async function submitExpense() {
+  const title = document.getElementById('expTitle').value.trim();
+  const amount = document.getElementById('expAmount').value;
+  const category = document.getElementById('expCategory').value;
+  const note = document.getElementById('expNote').value.trim();
+
+  if (!title || !amount) { toast('Title and amount are required', 'error'); return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+
+  try {
+    if (editingId) {
+      await apiFetch(`/update-expense/${editingId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ title, amount: parseFloat(amount), category, note })
+      });
+      toast('Expense updated ✅', 'success');
+      cancelEdit();
+    } else {
+      await apiFetch('/add-expense', {
+        method: 'POST',
+        body: JSON.stringify({ title, amount: parseFloat(amount), category, note })
+      });
+      toast('Expense added ✅', 'success');
+      clearForm();
+    }
+    loadExpenses(1);
+    loadSummary();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function startEdit(id) {
+  try {
+    const e = await apiFetch(`/expenses/${id}`);
+    editingId = id;
+    document.getElementById('expTitle').value = e.title;
+    document.getElementById('expAmount').value = e.amount;
+    document.getElementById('expCategory').value = e.category;
+    document.getElementById('expNote').value = e.note || '';
+    document.getElementById('formTitle').textContent = 'Edit Expense';
+    document.getElementById('submitBtn').querySelector('span').textContent = 'Update Expense';
+    document.getElementById('cancelEditBtn').style.display = 'inline-flex';
+    document.getElementById('formPanel').scrollIntoView({ behavior: 'smooth' });
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function cancelEdit() {
+  editingId = null;
+  clearForm();
+  document.getElementById('formTitle').textContent = 'Add Expense';
+  document.getElementById('submitBtn').querySelector('span').textContent = 'Add Expense';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+}
+
+function clearForm() {
+  ['expTitle','expAmount','expNote'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('expCategory').selectedIndex = 0;
+}
+
+function openDeleteModal(id) {
+  deleteTargetId = id;
+  document.getElementById('deleteModal').style.display = 'flex';
+}
+function closeDeleteModal() {
+  deleteTargetId = null;
+  document.getElementById('deleteModal').style.display = 'none';
+}
+async function confirmDelete() {
+  if (!deleteTargetId) return;
+  try {
+    await apiFetch(`/delete-expense/${deleteTargetId}`, { method:'DELETE' });
+    toast('Expense deleted', 'success');
+    closeDeleteModal();
+    loadExpenses(currentPage);
+    loadSummary();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function toast(msg, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-icon">${type === 'success' ? '✓' : '⚠'}</span><span>${esc(msg)}</span>`;
+  container.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+function fmt(n) { return '$' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function fmtDate(d) { return new Date(d).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+document.getElementById('deleteModal').addEventListener('click', e => { if(e.target === e.currentTarget) closeDeleteModal(); });
 </script>
-
 </body>
 </html>
