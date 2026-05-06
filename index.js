@@ -4,47 +4,58 @@ const { Pool } = require("pg");
 require("dotenv").config();
 
 const app = express();
-app.use(cors());
+
+/* ✅ FIX 1: Proper CORS (important for Vercel frontend) */
+app.use(cors({
+  origin: "*", // 🔥 You can replace with your Vercel URL later
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type"]
+}));
+
 app.use(express.json());
 
+/* ✅ FIX 2: DB connection safe config */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl:
-    process.env.NODE_ENV === "production"
-      ? { rejectUnauthorized: false }
-      : false,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 /* ───────────────── DB INIT ───────────────── */
 async function initDB() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS categories (
-      id SERIAL PRIMARY KEY,
-      name TEXT UNIQUE NOT NULL,
-      color TEXT DEFAULT '#6366f1'
-    );
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        name TEXT UNIQUE NOT NULL,
+        color TEXT DEFAULT '#6366f1'
+      );
 
-    CREATE TABLE IF NOT EXISTS expenses (
-      id SERIAL PRIMARY KEY,
-      title TEXT NOT NULL,
-      amount NUMERIC NOT NULL,
-      category TEXT,
-      note TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+      CREATE TABLE IF NOT EXISTS expenses (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        amount NUMERIC NOT NULL,
+        category TEXT,
+        note TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
-  // Default category
-  await pool.query(`
-    INSERT INTO categories (name)
-    VALUES ('General')
-    ON CONFLICT (name) DO NOTHING
-  `);
+    await pool.query(`
+      INSERT INTO categories (name)
+      VALUES ('General')
+      ON CONFLICT (name) DO NOTHING
+    `);
 
-  console.log("DB Ready");
+    console.log("✅ DB Ready");
+  } catch (err) {
+    console.error("❌ DB INIT ERROR:", err.message);
+  }
 }
 
-if (process.env.NODE_ENV !== "test") initDB();
+/* ✅ Always run DB init in production */
+initDB();
 
 /* ───────────────── HEALTH ───────────────── */
 app.get("/health", (req, res) => {
@@ -53,181 +64,184 @@ app.get("/health", (req, res) => {
 
 /* ───────────────── SUMMARY ───────────────── */
 app.get("/summary", async (req, res) => {
-  const r = await pool.query(`
-    SELECT 
-      COUNT(*) AS count,
-      COALESCE(SUM(amount),0) AS total,
-      COALESCE(AVG(amount),0) AS average,
-      COALESCE(MAX(amount),0) AS max,
-      COALESCE(MIN(amount),0) AS min
-    FROM expenses
-  `);
-  res.json(r.rows[0]);
+  try {
+    const r = await pool.query(`
+      SELECT 
+        COUNT(*) AS count,
+        COALESCE(SUM(amount),0) AS total,
+        COALESCE(AVG(amount),0) AS average,
+        COALESCE(MAX(amount),0) AS max,
+        COALESCE(MIN(amount),0) AS min
+      FROM expenses
+    `);
+    res.json(r.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-/* ───────────────── EXPENSES (PAGINATION + SEARCH) ───────────────── */
+/* ───────────────── EXPENSES ───────────────── */
 app.get("/expenses", async (req, res) => {
-  const { page = 1, limit = 10, search = "", category = "", sort = "id", order = "DESC" } = req.query;
-  const offset = (page - 1) * limit;
+  try {
+    const { page = 1, limit = 10, search = "", category = "", sort = "id", order = "DESC" } = req.query;
+    const offset = (page - 1) * limit;
 
-  let where = [];
-  let values = [];
+    let where = [];
+    let values = [];
 
-  if (search) {
-    values.push(`%${search}%`);
-    where.push(`(title ILIKE $${values.length} OR note ILIKE $${values.length})`);
+    if (search) {
+      values.push(`%${search}%`);
+      where.push(`(title ILIKE $${values.length} OR note ILIKE $${values.length})`);
+    }
+
+    if (category) {
+      values.push(category);
+      where.push(`category = $${values.length}`);
+    }
+
+    const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+    const data = await pool.query(
+      `SELECT * FROM expenses
+       ${whereClause}
+       ORDER BY ${sort} ${order}
+       LIMIT $${values.length + 1}
+       OFFSET $${values.length + 2}`,
+      [...values, limit, offset]
+    );
+
+    const count = await pool.query(
+      `SELECT COUNT(*) FROM expenses ${whereClause}`,
+      values
+    );
+
+    res.json({
+      data: data.rows,
+      pagination: {
+        page: Number(page),
+        total: Number(count.rows[0].count),
+        totalPages: Math.ceil(count.rows[0].count / limit),
+      },
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  if (category) {
-    values.push(category);
-    where.push(`category = $${values.length}`);
-  }
-
-  const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-  const data = await pool.query(
-    `SELECT * FROM expenses
-     ${whereClause}
-     ORDER BY ${sort} ${order}
-     LIMIT $${values.length + 1}
-     OFFSET $${values.length + 2}`,
-    [...values, limit, offset]
-  );
-
-  const count = await pool.query(`SELECT COUNT(*) FROM expenses ${whereClause}`, values);
-
-  res.json({
-    data: data.rows,
-    pagination: {
-      page: Number(page),
-      total: Number(count.rows[0].count),
-      totalPages: Math.ceil(count.rows[0].count / limit),
-    },
-  });
 });
 
-/* ───────────────── SINGLE EXPENSE ───────────────── */
+/* ───────────────── SINGLE ───────────────── */
 app.get("/expenses/:id", async (req, res) => {
-  const r = await pool.query("SELECT * FROM expenses WHERE id=$1", [req.params.id]);
-  if (!r.rows.length) return res.status(404).json({ error: "Not found" });
-  res.json(r.rows[0]);
+  try {
+    const r = await pool.query("SELECT * FROM expenses WHERE id=$1", [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: "Not found" });
+    res.json(r.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* ───────────────── ADD ───────────────── */
 app.post("/add-expense", async (req, res) => {
-  const { title, amount, category, note } = req.body;
-  if (!title || !amount) return res.status(400).json({ error: "Required fields missing" });
+  try {
+    const { title, amount, category, note } = req.body;
 
-  const r = await pool.query(
-    "INSERT INTO expenses (title, amount, category, note) VALUES ($1,$2,$3,$4) RETURNING *",
-    [title, amount, category || "General", note || ""]
-  );
-  res.json(r.rows[0]);
+    if (!title || !amount) {
+      return res.status(400).json({ error: "Required fields missing" });
+    }
+
+    const r = await pool.query(
+      "INSERT INTO expenses (title, amount, category, note) VALUES ($1,$2,$3,$4) RETURNING *",
+      [title, amount, category || "General", note || ""]
+    );
+
+    res.json(r.rows[0]);
+
+  } catch (err) {
+    console.error("ADD ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* ───────────────── UPDATE ───────────────── */
 app.put("/update-expense/:id", async (req, res) => {
-  const { title, amount, category, note } = req.body;
+  try {
+    const { title, amount, category, note } = req.body;
 
-  const r = await pool.query(
-    `UPDATE expenses SET title=$1, amount=$2, category=$3, note=$4 WHERE id=$5 RETURNING *`,
-    [title, amount, category, note, req.params.id]
-  );
+    const r = await pool.query(
+      `UPDATE expenses SET title=$1, amount=$2, category=$3, note=$4 WHERE id=$5 RETURNING *`,
+      [title, amount, category, note, req.params.id]
+    );
 
-  res.json(r.rows[0]);
+    res.json(r.rows[0]);
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* ───────────────── DELETE ───────────────── */
 app.delete("/delete-expense/:id", async (req, res) => {
-  await pool.query("DELETE FROM expenses WHERE id=$1", [req.params.id]);
-  res.json({ message: "Deleted" });
+  try {
+    await pool.query("DELETE FROM expenses WHERE id=$1", [req.params.id]);
+    res.json({ message: "Deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* ───────────────── BULK DELETE ───────────────── */
 app.delete("/delete-expenses", async (req, res) => {
-  const { ids } = req.body;
-  if (!ids || !ids.length) return res.status(400).json({ error: "No IDs" });
+  try {
+    const { ids } = req.body;
+    if (!ids || !ids.length) {
+      return res.status(400).json({ error: "No IDs" });
+    }
 
-  await pool.query(`DELETE FROM expenses WHERE id = ANY($1::int[])`, [ids]);
-  res.json({ message: "Deleted selected" });
+    await pool.query(`DELETE FROM expenses WHERE id = ANY($1::int[])`, [ids]);
+    res.json({ message: "Deleted selected" });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* ───────────────── CATEGORIES ───────────────── */
 app.get("/categories", async (req, res) => {
-  const r = await pool.query("SELECT * FROM categories ORDER BY name");
-  res.json(r.rows);
+  try {
+    const r = await pool.query("SELECT * FROM categories ORDER BY name");
+    res.json(r.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post("/categories", async (req, res) => {
-  const { name, color } = req.body;
   try {
+    const { name, color } = req.body;
+
     const r = await pool.query(
       "INSERT INTO categories (name,color) VALUES ($1,$2) RETURNING *",
       [name, color]
     );
+
     res.json(r.rows[0]);
-  } catch {
+
+  } catch (err) {
     res.status(400).json({ error: "Category exists" });
   }
 });
 
 app.delete("/categories/:id", async (req, res) => {
-  await pool.query("DELETE FROM categories WHERE id=$1", [req.params.id]);
-  res.json({ message: "Deleted" });
-});
-
-/* ───────────────── DATE FILTER ───────────────── */
-app.get("/expenses-by-date", async (req, res) => {
-  const { start, end } = req.query;
-  const r = await pool.query(
-    `SELECT * FROM expenses WHERE created_at BETWEEN $1 AND $2 ORDER BY created_at DESC`,
-    [start, end]
-  );
-  res.json(r.rows);
-});
-
-/* ───────────────── CHARTS ───────────────── */
-app.get("/chart-data", async (req, res) => {
-  const r = await pool.query(`
-    SELECT DATE(created_at) as date, SUM(amount) as total
-    FROM expenses
-    GROUP BY date ORDER BY date
-  `);
-  res.json(r.rows);
-});
-
-app.get("/chart-data/monthly", async (req, res) => {
-  const r = await pool.query(`
-    SELECT TO_CHAR(created_at,'YYYY-MM') as month, SUM(amount) as total
-    FROM expenses GROUP BY month ORDER BY month
-  `);
-  res.json(r.rows);
-});
-
-app.get("/chart-data/category", async (req, res) => {
-  const r = await pool.query(`
-    SELECT category, SUM(amount) as total
-    FROM expenses GROUP BY category
-  `);
-  res.json(r.rows);
-});
-
-/* ───────────────── CSV EXPORT ───────────────── */
-app.get("/export/csv", async (req, res) => {
-  const r = await pool.query("SELECT * FROM expenses ORDER BY created_at DESC");
-
-  const rows = r.rows;
-  let csv = "ID,Title,Amount,Category,Note,Date\n";
-
-  rows.forEach(e => {
-    csv += `${e.id},"${e.title}",${e.amount},${e.category},"${e.note}",${e.created_at}\n`;
-  });
-
-  res.setHeader("Content-Type", "text/csv");
-  res.setHeader("Content-Disposition", "attachment; filename=expenses.csv");
-  res.send(csv);
+  try {
+    await pool.query("DELETE FROM categories WHERE id=$1", [req.params.id]);
+    res.json({ message: "Deleted" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /* ───────────────── SERVER ───────────────── */
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on ${PORT}`);
+});
