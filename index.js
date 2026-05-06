@@ -1,19 +1,12 @@
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
+const { Parser } = require("json2csv");
 require("dotenv").config();
 
 const app = express();
 
-/* ───────────────── MIDDLEWARE ───────────────── */
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type"],
-  })
-);
-
+app.use(cors());
 app.use(express.json());
 
 /* ───────────────── DB ───────────────── */
@@ -26,20 +19,18 @@ const pool = new Pool({
 
 /* ───────────────── ROOT ───────────────── */
 app.get("/", (req, res) => {
-  res.status(200).send("🚀 Expense Tracker API is running");
+  res.send("🚀 Expense Tracker API is running");
 });
 
-/* ───────────────── HEALTH ───────────────── */
 app.get("/health", (req, res) => {
   res.json({ status: "OK" });
 });
 
-/* ───────────────── INIT DB + MIGRATION ───────────────── */
+/* ───────────────── INIT DB ───────────────── */
 async function initDB() {
   try {
     console.log("🔄 Connecting DB...");
 
-    /* categories table */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS categories (
         id SERIAL PRIMARY KEY,
@@ -48,7 +39,6 @@ async function initDB() {
       )
     `);
 
-    /* base expenses table */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS expenses (
         id SERIAL PRIMARY KEY,
@@ -57,7 +47,6 @@ async function initDB() {
       )
     `);
 
-    /* migrations */
     await pool.query(`
       ALTER TABLE expenses
       ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General'
@@ -73,29 +62,15 @@ async function initDB() {
       ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     `);
 
-    /* default category */
     await pool.query(`
       INSERT INTO categories(name,color)
       VALUES('General','#6366f1')
       ON CONFLICT(name) DO NOTHING
     `);
 
-    /* verify columns */
-    const check = await pool.query(`
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_name='expenses'
-      ORDER BY ordinal_position
-    `);
-
-    console.log(
-      "✅ expenses columns:",
-      check.rows.map((r) => r.column_name)
-    );
-
     console.log("✅ Database Ready");
   } catch (err) {
-    console.error("❌ DB INIT ERROR:", err);
+    console.error("DB INIT ERROR:", err);
     throw err;
   }
 }
@@ -103,17 +78,17 @@ async function initDB() {
 /* ───────────────── SUMMARY ───────────────── */
 app.get("/summary", async (req, res) => {
   try {
-    const result = await pool.query(`
+    const r = await pool.query(`
       SELECT
-        COUNT(*) AS count,
-        COALESCE(SUM(amount),0) AS total,
-        COALESCE(AVG(amount),0) AS average,
-        COALESCE(MAX(amount),0) AS max,
-        COALESCE(MIN(amount),0) AS min
+        COUNT(*) count,
+        COALESCE(SUM(amount),0) total,
+        COALESCE(AVG(amount),0) average,
+        COALESCE(MAX(amount),0) max,
+        COALESCE(MIN(amount),0) min
       FROM expenses
     `);
 
-    res.json(result.rows[0]);
+    res.json(r.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -123,7 +98,7 @@ app.get("/summary", async (req, res) => {
 app.get("/expenses", async (req, res) => {
   try {
     const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 10);
+    const limit = Number(req.query.limit || 15);
     const search = req.query.search || "";
     const category = req.query.category || "";
     const sort = req.query.sort || "id";
@@ -161,10 +136,9 @@ app.get("/expenses", async (req, res) => {
       where.push(`category = $${values.length}`);
     }
 
-    const whereClause =
-      where.length > 0
-        ? `WHERE ${where.join(" AND ")}`
-        : "";
+    const whereClause = where.length
+      ? `WHERE ${where.join(" AND ")}`
+      : "";
 
     const data = await pool.query(
       `
@@ -193,46 +167,44 @@ app.get("/expenses", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("GET EXPENSES ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ───────────────── SINGLE EXPENSE ───────────────── */
+/* SINGLE */
 app.get("/expenses/:id", async (req, res) => {
   try {
-    const result = await pool.query(
+    const r = await pool.query(
       "SELECT * FROM expenses WHERE id=$1",
       [req.params.id]
     );
 
-    if (!result.rows.length) {
+    if (!r.rows.length) {
       return res.status(404).json({
         error: "Expense not found",
       });
     }
 
-    res.json(result.rows[0]);
+    res.json(r.rows[0]);
   } catch (err) {
-    console.error("GET SINGLE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ───────────────── ADD EXPENSE ───────────────── */
+/* ADD */
 app.post("/add-expense", async (req, res) => {
   try {
     const { title, amount, category, note } = req.body;
 
     if (!title || amount == null) {
       return res.status(400).json({
-        error: "title and amount are required",
+        error: "Title and amount required",
       });
     }
 
-    const result = await pool.query(
+    const r = await pool.query(
       `
-      INSERT INTO expenses(title, amount, category, note)
+      INSERT INTO expenses(title,amount,category,note)
       VALUES($1,$2,$3,$4)
       RETURNING *
       `,
@@ -244,19 +216,18 @@ app.post("/add-expense", async (req, res) => {
       ]
     );
 
-    res.json(result.rows[0]);
+    res.json(r.rows[0]);
   } catch (err) {
-    console.error("ADD ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ───────────────── UPDATE EXPENSE ───────────────── */
+/* UPDATE */
 app.put("/update-expense/:id", async (req, res) => {
   try {
     const { title, amount, category, note } = req.body;
 
-    const result = await pool.query(
+    const r = await pool.query(
       `
       UPDATE expenses
       SET title=$1,
@@ -269,20 +240,19 @@ app.put("/update-expense/:id", async (req, res) => {
       [title, amount, category, note, req.params.id]
     );
 
-    if (!result.rows.length) {
+    if (!r.rows.length) {
       return res.status(404).json({
         error: "Expense not found",
       });
     }
 
-    res.json(result.rows[0]);
+    res.json(r.rows[0]);
   } catch (err) {
-    console.error("UPDATE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ───────────────── DELETE SINGLE ───────────────── */
+/* DELETE */
 app.delete("/delete-expense/:id", async (req, res) => {
   try {
     await pool.query(
@@ -290,21 +260,18 @@ app.delete("/delete-expense/:id", async (req, res) => {
       [req.params.id]
     );
 
-    res.json({
-      message: "Expense deleted",
-    });
+    res.json({ message: "Deleted" });
   } catch (err) {
-    console.error("DELETE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ───────────────── BULK DELETE ───────────────── */
+/* BULK DELETE */
 app.delete("/delete-expenses", async (req, res) => {
   try {
     const { ids } = req.body;
 
-    if (!Array.isArray(ids) || ids.length === 0) {
+    if (!Array.isArray(ids) || !ids.length) {
       return res.status(400).json({
         error: "No IDs provided",
       });
@@ -316,40 +283,133 @@ app.delete("/delete-expenses", async (req, res) => {
     );
 
     res.json({
-      message: "Selected expenses deleted",
+      message: "Deleted selected expenses",
     });
   } catch (err) {
-    console.error("BULK DELETE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ───────────────── GET CATEGORIES ───────────────── */
-app.get("/categories", async (req, res) => {
+/* ───────────────── DATE FILTER ───────────────── */
+app.get("/expenses-by-date", async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT * FROM categories ORDER BY name"
+    const { start, end } = req.query;
+
+    const r = await pool.query(
+      `
+      SELECT *
+      FROM expenses
+      WHERE created_at::date BETWEEN $1 AND $2
+      ORDER BY created_at DESC
+      `,
+      [start, end]
     );
 
-    res.json(result.rows);
+    res.json(r.rows);
   } catch (err) {
-    console.error("GET CATEGORIES ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ───────────────── ADD CATEGORY ───────────────── */
+/* ───────────────── CHART DAILY ───────────────── */
+app.get("/chart-data", async (req, res) => {
+  try {
+    const range = Number(req.query.range || 30);
+
+    const r = await pool.query(
+      `
+      SELECT
+        TO_CHAR(created_at,'DD Mon') AS date,
+        SUM(amount)::numeric AS total
+      FROM expenses
+      WHERE created_at >= NOW() - ($1 || ' days')::interval
+      GROUP BY DATE(created_at), TO_CHAR(created_at,'DD Mon')
+      ORDER BY DATE(created_at)
+      `,
+      [range]
+    );
+
+    res.json(r.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* MONTHLY */
+app.get("/chart-data/monthly", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        TO_CHAR(created_at,'Mon YYYY') AS month,
+        SUM(amount)::numeric AS total
+      FROM expenses
+      GROUP BY DATE_TRUNC('month', created_at), TO_CHAR(created_at,'Mon YYYY')
+      ORDER BY DATE_TRUNC('month', created_at)
+    `);
+
+    res.json(r.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* CATEGORY */
+app.get("/chart-data/category", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        category,
+        SUM(amount)::numeric AS total
+      FROM expenses
+      GROUP BY category
+      ORDER BY total DESC
+    `);
+
+    res.json(r.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ───────────────── EXPORT CSV ───────────────── */
+app.get("/export/csv", async (req, res) => {
+  try {
+    const r = await pool.query(`
+      SELECT
+        id,
+        title,
+        amount,
+        category,
+        note,
+        created_at
+      FROM expenses
+      ORDER BY created_at DESC
+    `);
+
+    const parser = new Parser();
+    const csv = parser.parse(r.rows);
+
+    res.header("Content-Type", "text/csv");
+    res.attachment("expenses.csv");
+    res.send(csv);
+  } catch (err) {
+    res.status(500).send("Export failed");
+  }
+});
+
+/* ───────────────── CATEGORIES ───────────────── */
+app.get("/categories", async (req, res) => {
+  const r = await pool.query(
+    "SELECT * FROM categories ORDER BY name"
+  );
+  res.json(r.rows);
+});
+
 app.post("/categories", async (req, res) => {
   try {
     const { name, color } = req.body;
 
-    if (!name) {
-      return res.status(400).json({
-        error: "Category name required",
-      });
-    }
-
-    const result = await pool.query(
+    const r = await pool.query(
       `
       INSERT INTO categories(name,color)
       VALUES($1,$2)
@@ -358,33 +418,24 @@ app.post("/categories", async (req, res) => {
       [name, color || "#6366f1"]
     );
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("ADD CATEGORY ERROR:", err);
+    res.json(r.rows[0]);
+  } catch {
     res.status(400).json({
       error: "Category already exists",
     });
   }
 });
 
-/* ───────────────── DELETE CATEGORY ───────────────── */
 app.delete("/categories/:id", async (req, res) => {
-  try {
-    await pool.query(
-      "DELETE FROM categories WHERE id=$1",
-      [req.params.id]
-    );
+  await pool.query(
+    "DELETE FROM categories WHERE id=$1",
+    [req.params.id]
+  );
 
-    res.json({
-      message: "Category deleted",
-    });
-  } catch (err) {
-    console.error("DELETE CATEGORY ERROR:", err);
-    res.status(500).json({ error: err.message });
-  }
+  res.json({ message: "Deleted" });
 });
 
-/* ───────────────── START SERVER ───────────────── */
+/* ───────────────── START ───────────────── */
 const PORT = process.env.PORT || 3000;
 
 (async () => {
@@ -392,10 +443,10 @@ const PORT = process.env.PORT || 3000;
     await initDB();
 
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🚀 Running on ${PORT}`);
     });
   } catch (err) {
-    console.error("❌ Startup failed:", err);
+    console.error(err);
     process.exit(1);
   }
 })();
