@@ -469,7 +469,7 @@
 <!-- ── Toast container ── -->
 <div id="toast-container"></div>
 
-<script>
+<script id="r4m4x0">
 const BASE_URL = "https://devops-project-nvdd.onrender.com";
 
 let mainChart = null;
@@ -481,74 +481,112 @@ let selectedIds = new Set();
 let searchTimer = null;
 let isFiltered = false;
 
-/* ── INIT ── */
+/* ───────────────── INIT ───────────────── */
 async function init() {
-  await Promise.all([loadSummary(), loadCategories()]);
-  loadExpenses(1);
-  loadChart(currentChartType);
+  try {
+    await Promise.all([
+      loadCategories(),
+      loadSummary()
+    ]);
+
+    await loadExpenses(1);
+    await loadChart("daily");
+  } catch (err) {
+    console.error(err);
+    toast("Failed to initialize app", "error");
+  }
 }
 
-/* ── TOAST ── */
+/* ───────────────── TOAST ───────────────── */
 function toast(msg, type = "success") {
   const el = document.createElement("div");
   el.className = "toast" + (type === "error" ? " error" : "");
   el.textContent = msg;
+
   document.getElementById("toast-container").appendChild(el);
-  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3000);
+
+  setTimeout(() => {
+    el.style.opacity = "0";
+    setTimeout(() => el.remove(), 300);
+  }, 3000);
 }
 
-/* ── SUMMARY STATS ── */
+/* ───────────────── FORMAT ───────────────── */
+function fmt(n) {
+  return Number(n || 0).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function escHtml(s) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/* ───────────────── SUMMARY ───────────────── */
 async function loadSummary() {
   try {
     const res = await fetch(`${BASE_URL}/summary`);
     const d = await res.json();
+
     document.getElementById("stat-total").textContent = "₹" + fmt(d.total);
     document.getElementById("stat-count").textContent = d.count;
-    document.getElementById("stat-avg").textContent  = "₹" + fmt(d.average);
-    document.getElementById("stat-max").textContent  = "₹" + fmt(d.max);
-    document.getElementById("stat-min").textContent  = "₹" + fmt(d.min);
-  } catch(e) { console.error(e); }
+    document.getElementById("stat-avg").textContent = "₹" + fmt(d.average);
+    document.getElementById("stat-max").textContent = "₹" + fmt(d.max);
+    document.getElementById("stat-min").textContent = "₹" + fmt(d.min);
+  } catch (err) {
+    console.error(err);
+  }
 }
 
-function fmt(n) {
-  return Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-/* ── CATEGORIES ── */
+/* ───────────────── CATEGORIES ───────────────── */
 async function loadCategories() {
   try {
     const res = await fetch(`${BASE_URL}/categories`);
     categories = await res.json();
+
     populateCategorySelects();
     renderCatList();
-  } catch(e) { console.error(e); }
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 function getCatColor(name) {
-  const c = categories.find(c => c.name === name);
-  return c ? c.color : "#6366f1";
+  const cat = categories.find(c => c.name === name);
+  return cat ? cat.color : "#6366f1";
 }
 
 function populateCategorySelects() {
-  const selects = ["m-category", "cat-filter"];
-  selects.forEach(id => {
+  ["m-category", "cat-filter"].forEach(id => {
     const sel = document.getElementById(id);
-    const isCatFilter = id === "cat-filter";
-    const current = sel.value;
-    sel.innerHTML = isCatFilter ? '<option value="">All Categories</option>' : '';
+    const oldValue = sel.value;
+    const isFilter = id === "cat-filter";
+
+    sel.innerHTML = isFilter
+      ? `<option value="">All Categories</option>`
+      : "";
+
     categories.forEach(c => {
-      const opt = document.createElement("option");
-      opt.value = c.name;
-      opt.textContent = c.name;
-      sel.appendChild(opt);
+      sel.innerHTML += `<option value="${c.name}">${c.name}</option>`;
     });
-    sel.value = current;
+
+    sel.value = oldValue;
   });
 }
 
 function renderCatList() {
   const el = document.getElementById("cat-list");
-  if (!categories.length) { el.innerHTML = '<span style="color:var(--muted);font-size:.8rem">No categories yet</span>'; return; }
+
+  if (!categories.length) {
+    el.innerHTML = `<span style="color:var(--muted)">No categories</span>`;
+    return;
+  }
+
   el.innerHTML = categories.map(c => `
     <span class="cat-chip" style="background:${c.color}">
       ${c.name}
@@ -560,46 +598,75 @@ function renderCatList() {
 async function addCategory() {
   const name = document.getElementById("new-cat-name").value.trim();
   const color = document.getElementById("new-cat-color").value;
-  if (!name) { toast("Enter a category name", "error"); return; }
+
+  if (!name) {
+    toast("Enter category name", "error");
+    return;
+  }
+
   try {
     const res = await fetch(`${BASE_URL}/categories`, {
       method: "POST",
-      headers: {"Content-Type":"application/json"},
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ name, color })
     });
+
     const d = await res.json();
-    if (!res.ok) { toast(d.error || "Failed", "error"); return; }
+
+    if (!res.ok) {
+      toast(d.error, "error");
+      return;
+    }
+
     document.getElementById("new-cat-name").value = "";
-    toast(`Category "${name}" added ✅`);
+
     await loadCategories();
-  } catch(e) { toast("Network error", "error"); }
+
+    toast("Category added ✅");
+  } catch {
+    toast("Network error", "error");
+  }
 }
 
 async function deleteCategory(id, name) {
-  if (!confirm(`Delete category "${name}"?`)) return;
+  if (!confirm(`Delete "${name}"?`)) return;
+
   try {
-    const res = await fetch(`${BASE_URL}/categories/${id}`, { method: "DELETE" });
-    const d = await res.json();
-    if (!res.ok) { toast(d.error, "error"); return; }
-    toast(`Category deleted`);
+    await fetch(`${BASE_URL}/categories/${id}`, {
+      method: "DELETE"
+    });
+
     await loadCategories();
-  } catch(e) { toast("Network error", "error"); }
+
+    toast("Category deleted");
+  } catch {
+    toast("Network error", "error");
+  }
 }
 
-/* ── LOAD EXPENSES ── */
+/* ───────────────── LOAD EXPENSES ───────────────── */
 async function loadExpenses(page = 1) {
   if (isFiltered) return;
+
   currentPage = page;
   selectedIds.clear();
   updateBulkBar();
 
-  const search   = document.getElementById("search-input").value.trim();
+  const search = document.getElementById("search-input").value.trim();
   const category = document.getElementById("cat-filter").value;
-  const sort     = document.getElementById("sort-select").value;
-  const order    = sort === "title" ? "ASC" : "DESC";
+  const sort = document.getElementById("sort-select").value;
+  const order = sort === "title" ? "ASC" : "DESC";
 
-  const params = new URLSearchParams({ page, limit: 15, sort, order });
-  if (search)   params.set("search", search);
+  const params = new URLSearchParams({
+    page,
+    limit: 15,
+    sort,
+    order
+  });
+
+  if (search) params.set("search", search);
   if (category) params.set("category", category);
 
   const list = document.getElementById("expense-list");
@@ -608,193 +675,120 @@ async function loadExpenses(page = 1) {
   try {
     const res = await fetch(`${BASE_URL}/expenses?${params}`);
     const d = await res.json();
+
     renderExpenses(d.data);
     renderPagination(d.pagination);
-  } catch(e) {
-    list.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><p>Failed to load expenses</p></div>`;
+  } catch {
+    list.innerHTML = `<div class="empty"><p>Failed to load</p></div>`;
   }
 }
 
 function renderExpenses(data) {
   const list = document.getElementById("expense-list");
+
   if (!data || !data.length) {
     list.innerHTML = `<div class="empty"><div class="empty-icon">🧾</div><p>No expenses found</p></div>`;
     return;
   }
+
   list.innerHTML = data.map(exp => {
     const color = getCatColor(exp.category);
-    const date = new Date(exp.created_at).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"2-digit" });
-    const noteHtml = exp.note ? `<div class="expense-note">📝 ${escHtml(exp.note)}</div>` : "";
+    const date = new Date(exp.created_at).toLocaleDateString("en-IN");
+
     return `
       <div class="expense-item" id="item-${exp.id}">
-        <div class="expense-check"><input type="checkbox" onchange="toggleSelect(${exp.id}, this)" /></div>
+        <div class="expense-check">
+          <input type="checkbox" onchange="toggleSelect(${exp.id}, this)">
+        </div>
+
         <div class="expense-cat-dot" style="background:${color}"></div>
+
         <div class="expense-info">
           <div class="expense-title">${escHtml(exp.title)}</div>
+
           <div class="expense-meta">
-            <span class="cat-badge" style="background:${color}">${exp.category}</span>
-            &nbsp;${date}
+            <span class="cat-badge" style="background:${color}">
+              ${exp.category}
+            </span>
+            &nbsp; ${date}
           </div>
-          ${noteHtml}
+
+          ${exp.note ? `<div class="expense-note">📝 ${escHtml(exp.note)}</div>` : ""}
         </div>
+
         <div class="expense-amount">₹${fmt(exp.amount)}</div>
+
         <div class="expense-actions">
           <button class="btn btn-ghost btn-sm" onclick="openEditModal(${exp.id})">✏</button>
           <button class="btn btn-danger btn-sm" onclick="deleteExpense(${exp.id})">🗑</button>
         </div>
-      </div>`;
+      </div>
+    `;
   }).join("");
 }
 
 function renderPagination(p) {
   const el = document.getElementById("pagination");
-  if (!p || p.totalPages <= 1) { el.innerHTML = ""; return; }
-  let html = `<div class="pagination">`;
-  html += `<button class="page-btn" onclick="loadExpenses(${p.page-1})" ${p.page<=1?'disabled':''}>‹</button>`;
-  for (let i = 1; i <= p.totalPages; i++) {
-    if (p.totalPages > 7 && Math.abs(i - p.page) > 2 && i !== 1 && i !== p.totalPages) {
-      if (i === p.page - 3 || i === p.page + 3) html += `<span class="page-info">…</span>`;
-      continue;
-    }
-    html += `<button class="page-btn ${i===p.page?'active':''}" onclick="loadExpenses(${i})">${i}</button>`;
+
+  if (!p || p.totalPages <= 1) {
+    el.innerHTML = "";
+    return;
   }
-  html += `<button class="page-btn" onclick="loadExpenses(${p.page+1})" ${p.page>=p.totalPages?'disabled':''}>›</button>`;
-  html += `<span class="page-info">${p.total} total</span></div>`;
+
+  let html = `<div class="pagination">`;
+
+  html += `<button class="page-btn" onclick="loadExpenses(${p.page - 1})" ${p.page <= 1 ? "disabled" : ""}>‹</button>`;
+
+  for (let i = 1; i <= p.totalPages; i++) {
+    html += `<button class="page-btn ${i === p.page ? "active" : ""}" onclick="loadExpenses(${i})">${i}</button>`;
+  }
+
+  html += `<button class="page-btn" onclick="loadExpenses(${p.page + 1})" ${p.page >= p.totalPages ? "disabled" : ""}>›</button>`;
+  html += `</div>`;
+
   el.innerHTML = html;
 }
 
-/* ── ADD / EDIT MODAL ── */
-function openAddModal() {
-  editingId = null;
-  document.getElementById("modal-title").textContent = "Add Expense";
-  document.getElementById("modal-save-btn").textContent = "Add";
-  document.getElementById("m-title").value = "";
-  document.getElementById("m-amount").value = "";
-  document.getElementById("m-category").value = categories[0]?.name || "General";
-  document.getElementById("m-note").value = "";
-  openModal("expense-modal");
-}
-
-async function openEditModal(id) {
-  try {
-    const res = await fetch(`${BASE_URL}/expenses/${id}`);
-    if (!res.ok) { toast("Expense not found", "error"); return; }
-    const exp = await res.json();
-    editingId = id;
-    document.getElementById("modal-title").textContent = "Edit Expense";
-    document.getElementById("modal-save-btn").textContent = "Update";
-    document.getElementById("m-title").value = exp.title;
-    document.getElementById("m-amount").value = exp.amount;
-    document.getElementById("m-category").value = exp.category;
-    document.getElementById("m-note").value = exp.note || "";
-    openModal("expense-modal");
-  } catch(e) { toast("Network error", "error"); }
-}
-
-async function saveExpense() {
-  const title    = document.getElementById("m-title").value.trim();
-  const amount   = document.getElementById("m-amount").value;
-  const category = document.getElementById("m-category").value;
-  const note     = document.getElementById("m-note").value.trim();
-
-  if (!title || !amount) { toast("Title and amount are required", "error"); return; }
-
-  const body = JSON.stringify({ title, amount: Number(amount), category, note });
-  const btn = document.getElementById("modal-save-btn");
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-
-  try {
-    let res;
-    if (editingId) {
-      res = await fetch(`${BASE_URL}/update-expense/${editingId}`, { method:"PUT", headers:{"Content-Type":"application/json"}, body });
-    } else {
-      res = await fetch(`${BASE_URL}/add-expense`, { method:"POST", headers:{"Content-Type":"application/json"}, body });
-    }
-    const d = await res.json();
-    if (!res.ok) { toast((d.errors||[d.error]).join(", "), "error"); return; }
-    toast(editingId ? "Expense updated ✅" : "Expense added ✅");
-    closeModal("expense-modal");
-    await Promise.all([loadSummary(), loadExpenses(currentPage), loadChart(currentChartType)]);
-  } catch(e) { toast("Network error", "error"); }
-  finally { btn.disabled = false; btn.textContent = editingId ? "Update" : "Add"; }
-}
-
-/* ── DELETE ── */
-async function deleteExpense(id) {
-  if (!confirm("Delete this expense?")) return;
-  try {
-    const res = await fetch(`${BASE_URL}/delete-expense/${id}`, { method:"DELETE" });
-    if (!res.ok) { toast("Failed to delete", "error"); return; }
-    toast("Expense deleted");
-    document.getElementById(`item-${id}`)?.remove();
-    await Promise.all([loadSummary(), loadExpenses(currentPage), loadChart(currentChartType)]);
-  } catch(e) { toast("Network error", "error"); }
-}
-
-/* ── BULK DELETE ── */
-function toggleSelect(id, cb) {
-  if (cb.checked) selectedIds.add(id);
-  else selectedIds.delete(id);
-  updateBulkBar();
-}
-
-function updateBulkBar() {
-  const bar = document.getElementById("bulk-bar");
-  document.getElementById("selected-count").textContent = selectedIds.size;
-  bar.classList.toggle("visible", selectedIds.size > 0);
-}
-
-function clearSelection() {
-  selectedIds.clear();
-  document.querySelectorAll("#expense-list input[type=checkbox]").forEach(cb => cb.checked = false);
-  updateBulkBar();
-}
-
-async function bulkDelete() {
-  if (!selectedIds.size) return;
-  if (!confirm(`Delete ${selectedIds.size} expense(s)?`)) return;
-  try {
-    const res = await fetch(`${BASE_URL}/delete-expenses`, {
-      method: "DELETE",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ ids: [...selectedIds] })
-    });
-    const d = await res.json();
-    if (!res.ok) { toast(d.error, "error"); return; }
-    toast(d.message);
-    selectedIds.clear();
-    await Promise.all([loadSummary(), loadExpenses(currentPage), loadChart(currentChartType)]);
-  } catch(e) { toast("Network error", "error"); }
-}
-
-/* ── DATE FILTER ── */
+/* ───────────────── DATE FILTER ───────────────── */
 async function filterByDate() {
   const start = document.getElementById("filter-start").value;
-  const end   = document.getElementById("filter-end").value;
-  if (!start || !end) { toast("Pick start and end date", "error"); return; }
+  const end = document.getElementById("filter-end").value;
+
+  if (!start || !end) {
+    toast("Pick dates", "error");
+    return;
+  }
+
+  isFiltered = true;
 
   const el = document.getElementById("filter-results");
   el.innerHTML = `<div class="spinner"></div>`;
-  isFiltered = true;
 
   try {
     const res = await fetch(`${BASE_URL}/expenses-by-date?start=${start}&end=${end}`);
     const data = await res.json();
 
-    if (!data.length) { el.innerHTML = `<div class="empty"><p>No expenses in that range</p></div>`; return; }
+    if (!data.length) {
+      el.innerHTML = `<div class="empty"><p>No expenses</p></div>`;
+      return;
+    }
 
-    const total = data.reduce((s, e) => s + parseFloat(e.amount), 0);
+    const total = data.reduce((a, b) => a + Number(b.amount), 0);
+
     el.innerHTML = `
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <span style="font-size:.8rem;color:var(--muted)">${data.length} result(s)</span>
-        <span style="font-family:var(--mono);color:var(--accent)">₹${fmt(total)}</span>
+      <div style="margin-bottom:10px;font-family:var(--mono);color:var(--accent)">
+        Total: ₹${fmt(total)}
       </div>
+
       ${data.map(exp => `
-        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.85rem">
-          <span>${escHtml(exp.title)} <span class="cat-badge" style="background:${getCatColor(exp.category)}">${exp.category}</span></span>
-          <span style="font-family:var(--mono);color:var(--accent)">₹${fmt(exp.amount)}</span>
-        </div>`).join("")}`;
-  } catch(e) { el.innerHTML = `<p style="color:var(--danger);font-size:.85rem">Error loading data</p>`; }
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          ${escHtml(exp.title)} — ₹${fmt(exp.amount)}
+        </div>
+      `).join("")}
+    `;
+  } catch {
+    el.innerHTML = `<p style="color:red">Failed</p>`;
+  }
 }
 
 function clearFilter() {
@@ -805,120 +799,252 @@ function clearFilter() {
   loadExpenses(1);
 }
 
-/* ── CHARTS ── */
+/* ───────────────── CHART ───────────────── */
 async function loadChart(type) {
   currentChartType = type;
-  let data;
-  const catColors = {};
-  categories.forEach(c => catColors[c.name] = c.color);
 
-  try {
-    if (type === "daily") {
-      const res = await fetch(`${BASE_URL}/chart-data?range=30`);
-      data = await res.json();
-    } else if (type === "monthly") {
-      const res = await fetch(`${BASE_URL}/chart-data/monthly`);
-      data = await res.json();
-    } else {
-      const res = await fetch(`${BASE_URL}/chart-data/category`);
-      data = await res.json();
-    }
-  } catch(e) { return; }
+  let url = `${BASE_URL}/chart-data?range=30`;
 
-  if (mainChart) mainChart.destroy();
-  const ctx = document.getElementById("mainChart");
+  if (type === "monthly") {
+    url = `${BASE_URL}/chart-data/monthly`;
+  }
 
   if (type === "category") {
-    const labels = data.map(d => d.category);
-    const values = data.map(d => parseFloat(d.total));
-    const colors = labels.map(l => catColors[l] || "#6366f1");
+    url = `${BASE_URL}/chart-data/category`;
+  }
 
-    mainChart = new Chart(ctx, {
-      type: "doughnut",
-      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }] },
-      options: {
-        responsive: true, maintainAspectRatio: false, cutout: "65%",
-        plugins: {
-          legend: { position:"right", labels: { color:"#9ca3af", font:{family:"DM Mono",size:11}, boxWidth:12, padding:14 } },
-          tooltip: { callbacks: { label: ctx => ` ₹${fmt(ctx.parsed)}` } }
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (mainChart) mainChart.destroy();
+
+    const ctx = document.getElementById("mainChart");
+
+    if (type === "category") {
+      mainChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: data.map(x => x.category),
+          datasets: [{
+            data: data.map(x => Number(x.total)),
+            backgroundColor: data.map(x => getCatColor(x.category))
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
         }
-      }
-    });
-  } else {
-    const isMonthly = type === "monthly";
-    const labels = data.map(d => d[isMonthly ? "month" : "date"]);
-    const values = data.map(d => parseFloat(d.total));
+      });
+
+      return;
+    }
+
+    const labels = data.map(x => x.date || x.month);
+    const values = data.map(x => Number(x.total));
 
     mainChart = new Chart(ctx, {
       type: "bar",
       data: {
         labels,
         datasets: [{
-          label: "₹ Spent",
           data: values,
-          backgroundColor: "rgba(232,255,77,0.18)",
-          borderColor: "#e8ff4d",
           borderWidth: 2,
-          borderRadius: 4,
-          hoverBackgroundColor: "rgba(232,255,77,0.35)"
+          borderColor: "#e8ff4d",
+          backgroundColor: "rgba(232,255,77,.18)"
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => ` ₹${fmt(ctx.parsed.y)}` } }
-        },
-        scales: {
-          x: { ticks: { color:"#6b7280", font:{family:"DM Mono",size:10}, maxRotation:45 }, grid: { color:"#1e2229" } },
-          y: { ticks: { color:"#6b7280", font:{family:"DM Mono",size:10}, callback: v => "₹"+fmt(v) }, grid: { color:"#1e2229" } }
+          legend: { display: false }
         }
       }
     });
+
+  } catch (err) {
+    console.error(err);
   }
 }
 
 function switchChart(type, btn) {
-  document.querySelectorAll(".chart-tab").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".chart-tab").forEach(x => x.classList.remove("active"));
   btn.classList.add("active");
   loadChart(type);
 }
 
-/* ── EXPORT CSV ── */
+/* ───────────────── EXPORT ───────────────── */
 function exportCSV() {
   window.open(`${BASE_URL}/export/csv`, "_blank");
-  toast("CSV export started ⬇");
 }
 
-/* ── SEARCH DEBOUNCE ── */
+/* ───────────────── SEARCH ───────────────── */
 function debounceSearch() {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => loadExpenses(1), 400);
 }
 
-/* ── MODAL HELPERS ── */
-function openModal(id) { document.getElementById(id).classList.add("open"); }
-function closeModal(id) { document.getElementById(id).classList.remove("open"); }
+/* ───────────────── BULK ───────────────── */
+function toggleSelect(id, cb) {
+  cb.checked ? selectedIds.add(id) : selectedIds.delete(id);
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  document.getElementById("selected-count").textContent = selectedIds.size;
+  document.getElementById("bulk-bar")
+    .classList.toggle("visible", selectedIds.size > 0);
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  document.querySelectorAll("#expense-list input[type=checkbox]")
+    .forEach(cb => cb.checked = false);
+  updateBulkBar();
+}
+
+async function bulkDelete() {
+  if (!selectedIds.size) return;
+
+  if (!confirm("Delete selected?")) return;
+
+  await fetch(`${BASE_URL}/delete-expenses`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      ids: [...selectedIds]
+    })
+  });
+
+  toast("Deleted");
+  await refreshAll();
+}
+
+/* ───────────────── CRUD ───────────────── */
+function openAddModal() {
+  editingId = null;
+  document.getElementById("modal-title").textContent = "Add Expense";
+  document.getElementById("modal-save-btn").textContent = "Add";
+  document.getElementById("m-title").value = "";
+  document.getElementById("m-amount").value = "";
+  document.getElementById("m-note").value = "";
+  document.getElementById("m-category").value = categories[0]?.name || "General";
+  openModal("expense-modal");
+}
+
+async function openEditModal(id) {
+  const res = await fetch(`${BASE_URL}/expenses/${id}`);
+  const exp = await res.json();
+
+  editingId = id;
+
+  document.getElementById("modal-title").textContent = "Edit Expense";
+  document.getElementById("modal-save-btn").textContent = "Update";
+  document.getElementById("m-title").value = exp.title;
+  document.getElementById("m-amount").value = exp.amount;
+  document.getElementById("m-category").value = exp.category;
+  document.getElementById("m-note").value = exp.note || "";
+
+  openModal("expense-modal");
+}
+
+async function saveExpense() {
+  const title = document.getElementById("m-title").value.trim();
+  const amount = document.getElementById("m-amount").value;
+  const category = document.getElementById("m-category").value;
+  const note = document.getElementById("m-note").value.trim();
+
+  if (!title || !amount) {
+    toast("Title + amount required", "error");
+    return;
+  }
+
+  const body = JSON.stringify({
+    title,
+    amount: Number(amount),
+    category,
+    note
+  });
+
+  const url = editingId
+    ? `${BASE_URL}/update-expense/${editingId}`
+    : `${BASE_URL}/add-expense`;
+
+  const method = editingId ? "PUT" : "POST";
+
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body
+  });
+
+  const d = await res.json();
+
+  if (!res.ok) {
+    toast(d.error, "error");
+    return;
+  }
+
+  closeModal("expense-modal");
+  toast(editingId ? "Updated ✅" : "Added ✅");
+
+  await refreshAll();
+}
+
+async function deleteExpense(id) {
+  if (!confirm("Delete expense?")) return;
+
+  await fetch(`${BASE_URL}/delete-expense/${id}`, {
+    method: "DELETE"
+  });
+
+  toast("Deleted");
+  await refreshAll();
+}
+
+async function refreshAll() {
+  await Promise.all([
+    loadSummary(),
+    loadExpenses(currentPage),
+    loadChart(currentChartType)
+  ]);
+}
+
+/* ───────────────── MODAL ───────────────── */
+function openModal(id) {
+  document.getElementById(id).classList.add("open");
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove("open");
+}
 
 function openCatModal() {
-  renderCatList();
   openModal("cat-modal");
 }
 
+/* ───────────────── EVENTS ───────────────── */
 document.querySelectorAll(".modal-overlay").forEach(overlay => {
-  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.classList.remove("open"); });
+  overlay.addEventListener("click", e => {
+    if (e.target === overlay) overlay.classList.remove("open");
+  });
 });
 
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape") document.querySelectorAll(".modal-overlay.open").forEach(m => m.classList.remove("open"));
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal-overlay.open")
+      .forEach(x => x.classList.remove("open"));
+  }
 });
 
-/* ── UTILITY ── */
-function escHtml(s) {
-  return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
-}
-
+/* ───────────────── START ───────────────── */
 init();
 </script>
+
 </body>
 </html>
