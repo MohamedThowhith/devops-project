@@ -5,10 +5,15 @@ on:
     branches:
       - main
 
+# ✅ Future-proof for Node 24
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-test-deploy:
     runs-on: ubuntu-latest
 
+    # ✅ PostgreSQL for testing
     services:
       postgres:
         image: postgres:15
@@ -25,19 +30,22 @@ jobs:
           --health-retries=5
 
     steps:
-      # ✅ Updated version
+      # 1️⃣ Checkout
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ✅ Updated version
+      # 2️⃣ Setup Node
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 18
+          cache: "npm"
 
+      # 3️⃣ Install deps
       - name: Install dependencies
         run: npm install
 
+      # 4️⃣ Wait for PostgreSQL
       - name: Wait for PostgreSQL
         run: |
           for i in {1..10}; do
@@ -47,6 +55,7 @@ jobs:
           done
           echo "Postgres failed to start" && exit 1
 
+      # 5️⃣ Start backend
       - name: Start server
         env:
           PORT: 3000
@@ -54,19 +63,36 @@ jobs:
           DATABASE_URL: postgres://test:test@localhost:5432/testdb
         run: |
           node index.js &
-          sleep 5
+          sleep 3
 
+      # 6️⃣ Wait for server (IMPORTANT FIX)
+      - name: Wait for server
+        run: |
+          for i in {1..10}; do
+            curl -s http://localhost:3000/health && echo "Server is up!" && exit 0
+            echo "Waiting for server..."
+            sleep 2
+          done
+          echo "Server failed to start" && exit 1
+
+      # 7️⃣ Test APIs
       - name: Test health API
         run: curl --fail http://localhost:3000/health
 
       - name: Test expenses API
-        run: curl --fail http://localhost:3000/api/expenses
+        run: curl --fail http://localhost:3000/expenses
 
+      - name: Test summary API
+        run: curl --fail http://localhost:3000/summary
+
+      # 8️⃣ Build Docker image
       - name: Build Docker image
         run: docker build -t expense-tracker .
 
+      # 9️⃣ Deploy Backend (Render)
       - name: Deploy Backend (Render)
         run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
 
+      # 🔟 Deploy Frontend (Vercel)
       - name: Deploy Frontend (Vercel)
         run: curl -X POST ${{ secrets.VERCEL_DEPLOY_HOOK }}
