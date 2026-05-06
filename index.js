@@ -5,9 +5,18 @@ require("dotenv").config();
 
 const app = express();
 
-app.use(cors());
+/* ───────────────── MIDDLEWARE ───────────────── */
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type"],
+  })
+);
+
 app.use(express.json());
 
+/* ───────────────── DB ───────────────── */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL
@@ -15,63 +24,83 @@ const pool = new Pool({
     : false,
 });
 
-/* ROOT */
+/* ───────────────── ROOT ───────────────── */
 app.get("/", (req, res) => {
-  res.send("🚀 Expense Tracker API is running");
+  res.status(200).send("🚀 Expense Tracker API is running");
 });
 
-/* HEALTH */
+/* ───────────────── HEALTH ───────────────── */
 app.get("/health", (req, res) => {
   res.json({ status: "OK" });
 });
 
-/* DB INIT + MIGRATION */
+/* ───────────────── INIT DB + MIGRATION ───────────────── */
 async function initDB() {
   try {
-    /* Create tables if missing */
+    console.log("🔄 Connecting DB...");
+
+    /* categories table */
     await pool.query(`
       CREATE TABLE IF NOT EXISTS categories (
         id SERIAL PRIMARY KEY,
         name TEXT UNIQUE NOT NULL,
         color TEXT DEFAULT '#6366f1'
-      );
+      )
+    `);
 
+    /* base expenses table */
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS expenses (
         id SERIAL PRIMARY KEY,
         title TEXT NOT NULL,
-        amount NUMERIC NOT NULL,
-        note TEXT DEFAULT '',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+        amount NUMERIC NOT NULL
+      )
     `);
 
-    /* Migrate old DB safely */
+    /* migrations */
     await pool.query(`
       ALTER TABLE expenses
-      ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General';
-
-      ALTER TABLE expenses
-      ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';
-
-      ALTER TABLE expenses
-      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General'
     `);
 
-    /* Default category */
+    await pool.query(`
+      ALTER TABLE expenses
+      ADD COLUMN IF NOT EXISTS note TEXT DEFAULT ''
+    `);
+
+    await pool.query(`
+      ALTER TABLE expenses
+      ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    `);
+
+    /* default category */
     await pool.query(`
       INSERT INTO categories(name,color)
       VALUES('General','#6366f1')
-      ON CONFLICT(name) DO NOTHING;
+      ON CONFLICT(name) DO NOTHING
     `);
+
+    /* verify columns */
+    const check = await pool.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name='expenses'
+      ORDER BY ordinal_position
+    `);
+
+    console.log(
+      "✅ expenses columns:",
+      check.rows.map((r) => r.column_name)
+    );
 
     console.log("✅ Database Ready");
   } catch (err) {
-    console.error("❌ DB INIT ERROR:", err.message);
+    console.error("❌ DB INIT ERROR:", err);
     throw err;
   }
 }
 
-/* SUMMARY */
+/* ───────────────── SUMMARY ───────────────── */
 app.get("/summary", async (req, res) => {
   try {
     const result = await pool.query(`
@@ -90,7 +119,7 @@ app.get("/summary", async (req, res) => {
   }
 });
 
-/* EXPENSE LIST */
+/* ───────────────── GET EXPENSES ───────────────── */
 app.get("/expenses", async (req, res) => {
   try {
     const page = Number(req.query.page || 1);
@@ -117,8 +146,8 @@ app.get("/expenses", async (req, res) => {
 
     const offset = (page - 1) * limit;
 
-    const values = [];
-    const where = [];
+    let values = [];
+    let where = [];
 
     if (search) {
       values.push(`%${search}%`);
@@ -164,11 +193,12 @@ app.get("/expenses", async (req, res) => {
       },
     });
   } catch (err) {
+    console.error("GET EXPENSES ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* SINGLE */
+/* ───────────────── SINGLE EXPENSE ───────────────── */
 app.get("/expenses/:id", async (req, res) => {
   try {
     const result = await pool.query(
@@ -178,29 +208,25 @@ app.get("/expenses/:id", async (req, res) => {
 
     if (!result.rows.length) {
       return res.status(404).json({
-        error: "Not found",
+        error: "Expense not found",
       });
     }
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error("GET SINGLE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-/* ADD */
+/* ───────────────── ADD EXPENSE ───────────────── */
 app.post("/add-expense", async (req, res) => {
   try {
-    const {
-      title,
-      amount,
-      category,
-      note,
-    } = req.body;
+    const { title, amount, category, note } = req.body;
 
     if (!title || amount == null) {
       return res.status(400).json({
-        error: "title and amount required",
+        error: "title and amount are required",
       });
     }
 
@@ -221,21 +247,14 @@ app.post("/add-expense", async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error("ADD ERROR:", err);
-    res.status(500).json({
-      error: err.message,
-    });
+    res.status(500).json({ error: err.message });
   }
 });
 
-/* UPDATE */
+/* ───────────────── UPDATE EXPENSE ───────────────── */
 app.put("/update-expense/:id", async (req, res) => {
   try {
-    const {
-      title,
-      amount,
-      category,
-      note,
-    } = req.body;
+    const { title, amount, category, note } = req.body;
 
     const result = await pool.query(
       `
@@ -247,30 +266,23 @@ app.put("/update-expense/:id", async (req, res) => {
       WHERE id=$5
       RETURNING *
       `,
-      [
-        title,
-        amount,
-        category,
-        note,
-        req.params.id,
-      ]
+      [title, amount, category, note, req.params.id]
     );
 
     if (!result.rows.length) {
       return res.status(404).json({
-        error: "Not found",
+        error: "Expense not found",
       });
     }
 
     res.json(result.rows[0]);
   } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
+    console.error("UPDATE ERROR:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-/* DELETE */
+/* ───────────────── DELETE SINGLE ───────────────── */
 app.delete("/delete-expense/:id", async (req, res) => {
   try {
     await pool.query(
@@ -279,21 +291,20 @@ app.delete("/delete-expense/:id", async (req, res) => {
     );
 
     res.json({
-      message: "Deleted",
+      message: "Expense deleted",
     });
   } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
+    console.error("DELETE ERROR:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-/* BULK DELETE */
+/* ───────────────── BULK DELETE ───────────────── */
 app.delete("/delete-expenses", async (req, res) => {
   try {
     const { ids } = req.body;
 
-    if (!Array.isArray(ids) || !ids.length) {
+    if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({
         error: "No IDs provided",
       });
@@ -305,16 +316,15 @@ app.delete("/delete-expenses", async (req, res) => {
     );
 
     res.json({
-      message: "Deleted selected expenses",
+      message: "Selected expenses deleted",
     });
   } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
+    console.error("BULK DELETE ERROR:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-/* CATEGORIES */
+/* ───────────────── GET CATEGORIES ───────────────── */
 app.get("/categories", async (req, res) => {
   try {
     const result = await pool.query(
@@ -323,15 +333,21 @@ app.get("/categories", async (req, res) => {
 
     res.json(result.rows);
   } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
+    console.error("GET CATEGORIES ERROR:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
+/* ───────────────── ADD CATEGORY ───────────────── */
 app.post("/categories", async (req, res) => {
   try {
     const { name, color } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        error: "Category name required",
+      });
+    }
 
     const result = await pool.query(
       `
@@ -344,12 +360,14 @@ app.post("/categories", async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error("ADD CATEGORY ERROR:", err);
     res.status(400).json({
       error: "Category already exists",
     });
   }
 });
 
+/* ───────────────── DELETE CATEGORY ───────────────── */
 app.delete("/categories/:id", async (req, res) => {
   try {
     await pool.query(
@@ -358,16 +376,15 @@ app.delete("/categories/:id", async (req, res) => {
     );
 
     res.json({
-      message: "Deleted",
+      message: "Category deleted",
     });
   } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
+    console.error("DELETE CATEGORY ERROR:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-/* START */
+/* ───────────────── START SERVER ───────────────── */
 const PORT = process.env.PORT || 3000;
 
 (async () => {
@@ -375,10 +392,10 @@ const PORT = process.env.PORT || 3000;
     await initDB();
 
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`🚀 Running on ${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   } catch (err) {
-    console.error("Startup failed:", err);
+    console.error("❌ Startup failed:", err);
     process.exit(1);
   }
 })();
