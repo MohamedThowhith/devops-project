@@ -5,21 +5,29 @@ require("dotenv").config();
 
 const app = express();
 
-/* ✅ FIX 1: Proper CORS (important for Vercel frontend) */
+/* ✅ CORS FIX (important for Vercel frontend) */
 app.use(cors({
-  origin: "*", // 🔥 You can replace with your Vercel URL later
+  origin: "*",
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type"]
 }));
 
 app.use(express.json());
 
-/* ✅ FIX 2: DB connection safe config */
+/* ✅ PostgreSQL connection (Render compatible) */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: { rejectUnauthorized: false }
+});
+
+/* ───────────────── ROOT ROUTE (FIXED) ───────────────── */
+app.get("/", (req, res) => {
+  res.send("🚀 Expense Tracker API is running");
+});
+
+/* ───────────────── HEALTH ───────────────── */
+app.get("/health", (req, res) => {
+  res.json({ status: "OK" });
 });
 
 /* ───────────────── DB INIT ───────────────── */
@@ -54,13 +62,7 @@ async function initDB() {
   }
 }
 
-/* ✅ Always run DB init in production */
 initDB();
-
-/* ───────────────── HEALTH ───────────────── */
-app.get("/health", (req, res) => {
-  res.json({ status: "OK" });
-});
 
 /* ───────────────── SUMMARY ───────────────── */
 app.get("/summary", async (req, res) => {
@@ -157,7 +159,7 @@ app.post("/add-expense", async (req, res) => {
     res.json(r.rows[0]);
 
   } catch (err) {
-    console.error("ADD ERROR:", err);
+    console.error("❌ ADD ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -193,12 +195,14 @@ app.delete("/delete-expense/:id", async (req, res) => {
 app.delete("/delete-expenses", async (req, res) => {
   try {
     const { ids } = req.body;
+
     if (!ids || !ids.length) {
-      return res.status(400).json({ error: "No IDs" });
+      return res.status(400).json({ error: "No IDs provided" });
     }
 
     await pool.query(`DELETE FROM expenses WHERE id = ANY($1::int[])`, [ids]);
-    res.json({ message: "Deleted selected" });
+
+    res.json({ message: "Deleted selected expenses" });
 
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -227,7 +231,7 @@ app.post("/categories", async (req, res) => {
     res.json(r.rows[0]);
 
   } catch (err) {
-    res.status(400).json({ error: "Category exists" });
+    res.status(400).json({ error: "Category already exists" });
   }
 });
 
@@ -243,5 +247,5 @@ app.delete("/categories/:id", async (req, res) => {
 /* ───────────────── SERVER ───────────────── */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
