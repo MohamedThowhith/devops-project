@@ -24,13 +24,7 @@
       --mono: 'DM Mono', monospace;
     }
 
-    body {
-      font-family: var(--font);
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 0;
-    }
+    body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
 
     /* ── Header ── */
     header {
@@ -134,31 +128,12 @@
     .btn:active { transform: scale(.97); }
     .btn-primary { background: var(--accent); color: #0d0f14; }
     .btn-primary:hover { opacity: .88; }
-    .btn-ghost {
-      background: transparent;
-      color: var(--muted);
-      border: 1px solid var(--border);
-    }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
     .btn-ghost:hover { color: var(--text); border-color: var(--text); }
     .btn-danger { background: var(--danger); color: #fff; }
     .btn-danger:hover { opacity: .85; }
     .btn-sm { padding: 6px 11px; font-size: .78rem; border-radius: 6px; }
     .btn-full { width: 100%; justify-content: center; }
-
-    /* ── Tabs ── */
-    .tabs { display: flex; gap: 4px; margin-bottom: 18px; background: var(--surface2); border-radius: 8px; padding: 4px; }
-    .tab {
-      flex: 1;
-      text-align: center;
-      padding: 8px;
-      border-radius: 6px;
-      font-size: .82rem;
-      font-weight: 600;
-      cursor: pointer;
-      color: var(--muted);
-      transition: all .2s;
-    }
-    .tab.active { background: var(--surface); color: var(--accent); }
 
     /* ── Filter row ── */
     .filter-row {
@@ -185,29 +160,14 @@
       animation: fadeIn .25s ease;
     }
     @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
-    .expense-item:hover { border-color: var(--border); background: #1a1f28; }
-    .expense-check input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
-    .expense-cat-dot {
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
+    .expense-item:hover { background: #1a1f28; }
+    .expense-cat-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     .expense-info { flex: 1; min-width: 0; }
     .expense-title { font-weight: 600; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .expense-meta { font-size: .74rem; color: var(--muted); margin-top: 2px; }
     .expense-note { font-size: .74rem; color: var(--muted); font-style: italic; margin-top: 2px; }
     .expense-amount { font-family: var(--mono); font-size: 1rem; font-weight: 500; color: var(--accent); white-space: nowrap; }
     .expense-actions { display: flex; gap: 6px; }
-
-    /* ── Category badge ── */
-    .cat-badge {
-      display: inline-block;
-      padding: 2px 9px;
-      border-radius: 20px;
-      font-size: .7rem;
-      font-weight: 600;
-      color: #0d0f14;
-    }
 
     /* ── Pagination ── */
     .pagination { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
@@ -225,7 +185,6 @@
     .page-btn:hover { border-color: var(--accent); color: var(--accent); }
     .page-btn.active { background: var(--accent); color: #0d0f14; border-color: var(--accent); font-weight: 700; }
     .page-btn:disabled { opacity: .3; cursor: default; }
-    .page-info { font-size: .8rem; color: var(--muted); font-family: var(--mono); }
 
     /* ── Charts ── */
     .chart-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
@@ -325,21 +284,28 @@
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-    /* ── Loader ── */
-    .spinner {
-      width: 18px; height: 18px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin .6s linear infinite;
-      display: inline-block;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
     /* ── Sort/search row ── */
     .search-sort { display: flex; gap: 8px; margin-bottom: 14px; }
     .search-sort input { flex: 1; }
     .search-sort select { width: auto; flex-shrink: 0; }
+
+    /* ── Filter results ── */
+    .filter-result-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      font-size: .85rem;
+      margin-bottom: 6px;
+    }
+    .filter-summary {
+      margin-bottom: 10px;
+      font-size: .82rem;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
   </style>
 </head>
 <body>
@@ -357,7 +323,7 @@
 <div class="container">
 
   <!-- Stats -->
-  <div class="stats-grid" id="stats-grid">
+  <div class="stats-grid">
     <div class="stat-card"><div class="stat-label">Total Spent</div><div class="stat-value yellow" id="stat-total">—</div></div>
     <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-value" id="stat-count">—</div></div>
     <div class="stat-card"><div class="stat-label">Average</div><div class="stat-value green" id="stat-avg">—</div></div>
@@ -367,7 +333,7 @@
 
   <div class="main-grid">
 
-    <!-- LEFT: Charts -->
+    <!-- LEFT: Charts + Date Filter -->
     <div>
       <div class="card">
         <div class="card-title">Analytics</div>
@@ -434,12 +400,22 @@
       <div class="modal-title" id="modal-title">Add Expense</div>
       <button class="modal-close" onclick="closeModal('expense-modal')">✕</button>
     </div>
-    <div class="form-group"><label>Title *</label><input id="m-title" placeholder="e.g. Grocery shopping"/></div>
-    <div class="form-group"><label>Amount (₹) *</label><input id="m-amount" type="number" min="0.01" step="0.01" placeholder="0.00"/></div>
-    <div class="form-group"><label>Category</label>
+    <div class="form-group">
+      <label>Title *</label>
+      <input id="m-title" placeholder="e.g. Grocery shopping"/>
+    </div>
+    <div class="form-group">
+      <label>Amount (₹) *</label>
+      <input id="m-amount" type="number" min="0.01" step="0.01" placeholder="0.00"/>
+    </div>
+    <div class="form-group">
+      <label>Category</label>
       <select id="m-category"></select>
     </div>
-    <div class="form-group"><label>Note</label><textarea id="m-note" placeholder="Optional note…"></textarea></div>
+    <div class="form-group">
+      <label>Note</label>
+      <textarea id="m-note" placeholder="Optional note…"></textarea>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('expense-modal')">Cancel</button>
       <button class="btn btn-primary" id="modal-save-btn" onclick="saveExpense()">Save</button>
@@ -469,101 +445,75 @@
 <!-- ── Toast container ── -->
 <div id="toast-container"></div>
 
-<script id="r4m4x0">
+<script>
+
+/* ───────────────── CONFIG ───────────────── */
 
 const BASE_URL = "https://devops-project-nvdd.onrender.com";
 
-let token = localStorage.getItem("token");
-let currentUser = localStorage.getItem("user");
+/* ───────────────── STATE ───────────────── */
 
-let mainChart = null;
-let currentPage = 1;
+let token        = localStorage.getItem("token");
+let currentUser  = localStorage.getItem("user");
+let mainChart    = null;
+let currentPage  = 1;
 let currentChartType = "daily";
-let editingId = null;
-let categories = [];
-let selectedIds = new Set();
-let searchTimer = null;
-let isFiltered = false;
+let editingId    = null;
+let categories   = [];
+let selectedIds  = new Set();
+let searchTimer  = null;
 
 /* ───────────────── AUTH SCREEN ───────────────── */
 
 if (!token) {
   document.body.innerHTML = `
-    <div style="
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:#0d0f14;
-      color:white;
-      font-family:sans-serif;
-    ">
-      <div style="
-        width:100%;
-        max-width:400px;
-        background:#161920;
-        padding:30px;
-        border-radius:16px;
-      ">
-        <h2 style="margin-bottom:20px">💸 Expense Tracker</h2>
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0f14;color:white;font-family:'Syne',sans-serif;">
+      <div style="width:100%;max-width:400px;background:#161920;padding:30px;border-radius:16px;border:1px solid #2a2f3a;">
+        <h2 style="margin-bottom:6px;font-size:1.4rem;">💸 XpenseTracker</h2>
+        <p style="color:#6b7280;font-size:.85rem;margin-bottom:24px;">Track every rupee, every day.</p>
 
-        <input id="auth-name"
-          placeholder="Name"
-          style="width:100%;padding:12px;margin-bottom:10px;background:#1e2229;border:none;color:white;border-radius:8px"
-        />
-
-        <input id="auth-email"
-          placeholder="Email"
-          type="email"
-          style="width:100%;padding:12px;margin-bottom:10px;background:#1e2229;border:none;color:white;border-radius:8px"
-        />
-
-        <input id="auth-password"
-          placeholder="Password"
-          type="password"
-          style="width:100%;padding:12px;margin-bottom:16px;background:#1e2229;border:none;color:white;border-radius:8px"
-        />
-
-        <div style="display:flex;gap:10px">
-          <button onclick="register()" style="
-            flex:1;
-            padding:12px;
-            border:none;
-            border-radius:8px;
-            background:#e8ff4d;
-            font-weight:bold;
-            cursor:pointer;
-          ">Register</button>
-
-          <button onclick="login()" style="
-            flex:1;
-            padding:12px;
-            border:none;
-            border-radius:8px;
-            background:#4dffb4;
-            font-weight:bold;
-            cursor:pointer;
-          ">Login</button>
+        <div id="auth-fields">
+          <input id="auth-name" placeholder="Your name"
+            style="width:100%;padding:12px;margin-bottom:10px;background:#1e2229;border:1px solid #2a2f3a;color:white;border-radius:8px;font-family:inherit;outline:none;"/>
         </div>
 
-        <p id="auth-msg" style="margin-top:15px;color:#ff4d6d"></p>
+        <input id="auth-email" placeholder="Email address" type="email"
+          style="width:100%;padding:12px;margin-bottom:10px;background:#1e2229;border:1px solid #2a2f3a;color:white;border-radius:8px;font-family:inherit;outline:none;"/>
+
+        <input id="auth-password" placeholder="Password" type="password"
+          style="width:100%;padding:12px;margin-bottom:16px;background:#1e2229;border:1px solid #2a2f3a;color:white;border-radius:8px;font-family:inherit;outline:none;"/>
+
+        <div style="display:flex;gap:10px;margin-bottom:12px;">
+          <button id="btn-register" onclick="register()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#e8ff4d;font-weight:700;cursor:pointer;font-family:inherit;">Register</button>
+          <button id="btn-login" onclick="login()" style="flex:1;padding:12px;border:none;border-radius:8px;background:#4dffb4;font-weight:700;cursor:pointer;font-family:inherit;">Login</button>
+        </div>
+
+        <p style="font-size:.8rem;color:#6b7280;text-align:center;">
+          Already have an account? Click <strong style="color:#4dffb4;cursor:pointer" onclick="toggleAuthMode()">Login</strong>
+        </p>
+
+        <p id="auth-msg" style="margin-top:12px;color:#ff4d6d;font-size:.85rem;text-align:center;"></p>
       </div>
     </div>
   `;
+
+  // Toggle between register and login mode
+  let loginMode = false;
+  window.toggleAuthMode = function() {
+    loginMode = !loginMode;
+    const nameField = document.getElementById("auth-fields");
+    if (nameField) nameField.style.display = loginMode ? "none" : "block";
+  };
 }
 
-/* ───────────────── API ───────────────── */
+/* ───────────────── API HELPER ───────────────── */
 
 async function api(url, options = {}) {
-
   options.headers = {
     "Content-Type": "application/json",
     ...(options.headers || {})
   };
-
-  if (token) {
-    options.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) options.headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(BASE_URL + url, options);
 
@@ -571,81 +521,63 @@ async function api(url, options = {}) {
     logout();
     throw new Error("Unauthorized");
   }
-
   return res;
 }
 
-/* ───────────────── AUTH ───────────────── */
+/* ───────────────── AUTH FUNCTIONS ───────────────── */
 
 async function register() {
+  const nameEl     = document.getElementById("auth-name");
+  const name       = nameEl ? nameEl.value.trim() : "";
+  const email      = document.getElementById("auth-email").value.trim();
+  const password   = document.getElementById("auth-password").value.trim();
+  const msgEl      = document.getElementById("auth-msg");
 
-  const name = document.getElementById("auth-name").value.trim();
-  const email = document.getElementById("auth-email").value.trim();
-  const password = document.getElementById("auth-password").value.trim();
+  if (!name) { msgEl.textContent = "Please enter your name."; return; }
+  if (!email) { msgEl.textContent = "Please enter an email."; return; }
+  if (!password) { msgEl.textContent = "Please enter a password."; return; }
 
   try {
-
     const res = await fetch(`${BASE_URL}/register`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        name,
-        email,
-        password
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password })
     });
-
     const data = await res.json();
 
-    if (!res.ok) {
-      document.getElementById("auth-msg").textContent = data.error;
-      return;
-    }
+    if (!res.ok) { msgEl.textContent = data.error || "Registration failed."; return; }
 
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
-
     location.reload();
-
   } catch {
-    document.getElementById("auth-msg").textContent = "Network error";
+    document.getElementById("auth-msg").textContent = "Network error. Is the server running?";
   }
 }
 
 async function login() {
-
-  const email = document.getElementById("auth-email").value.trim();
+  const email    = document.getElementById("auth-email").value.trim();
   const password = document.getElementById("auth-password").value.trim();
+  const msgEl    = document.getElementById("auth-msg");
+
+  if (!email)    { msgEl.textContent = "Please enter an email."; return; }
+  if (!password) { msgEl.textContent = "Please enter a password."; return; }
 
   try {
-
     const res = await fetch(`${BASE_URL}/login`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        email,
-        password
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
     });
-
     const data = await res.json();
 
-    if (!res.ok) {
-      document.getElementById("auth-msg").textContent = data.error;
-      return;
-    }
+    if (!res.ok) { msgEl.textContent = data.error || "Login failed."; return; }
 
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
-
     location.reload();
-
   } catch {
-    document.getElementById("auth-msg").textContent = "Network error";
+    document.getElementById("auth-msg").textContent = "Network error. Is the server running?";
   }
 }
 
@@ -658,71 +590,47 @@ function logout() {
 /* ───────────────── HEADER USER ───────────────── */
 
 if (token) {
-
-  const user = JSON.parse(currentUser || "{}");
-
+  const user   = JSON.parse(currentUser || "{}");
   const header = document.querySelector(".header-actions");
-
-  header.innerHTML += `
-    <span style="
-      color:#e8ff4d;
-      margin-right:10px;
-      font-size:.9rem;
-    ">
-      👋 ${user.name || "User"}
-    </span>
-
-    <button class="btn btn-danger btn-sm" onclick="logout()">
-      Logout
-    </button>
-  `;
+  if (header) {
+    header.innerHTML = `
+      <span style="color:var(--accent);font-size:.9rem;">👋 ${escHtml(user.name || "User")}</span>
+      <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+      <button class="btn btn-ghost btn-sm" onclick="openCatModal()">🏷 Categories</button>
+      <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Expense</button>
+      <button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>
+    `;
+  }
 }
 
 /* ───────────────── INIT ───────────────── */
 
 async function init() {
-
   if (!token) return;
-
   try {
-
-    await Promise.all([
-      loadCategories(),
-      loadSummary()
-    ]);
-
+    await Promise.all([loadCategories(), loadSummary()]);
     await loadExpenses(1);
     await loadChart("daily");
-
   } catch (err) {
-    console.error(err);
+    console.error("Init error:", err);
+    toast("Failed to load data. Check server connection.", "error");
   }
 }
 
 /* ───────────────── TOAST ───────────────── */
 
 function toast(msg, type = "success") {
-
   const el = document.createElement("div");
-
   el.className = "toast" + (type === "error" ? " error" : "");
   el.textContent = msg;
-
   document.getElementById("toast-container").appendChild(el);
-
-  setTimeout(() => {
-    el.style.opacity = "0";
-    setTimeout(() => el.remove(), 300);
-  }, 3000);
+  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3000);
 }
 
-/* ───────────────── FORMAT ───────────────── */
+/* ───────────────── FORMAT HELPERS ───────────────── */
 
 function fmt(n) {
-  return Number(n || 0).toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+  return Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function escHtml(s) {
@@ -732,324 +640,330 @@ function escHtml(s) {
     .replace(/>/g, "&gt;");
 }
 
+function fmtDate(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
 /* ───────────────── SUMMARY ───────────────── */
 
 async function loadSummary() {
-
   const res = await api("/summary");
-  const d = await res.json();
-
+  const d   = await res.json();
   document.getElementById("stat-total").textContent = "₹" + fmt(d.total);
   document.getElementById("stat-count").textContent = d.count;
-  document.getElementById("stat-avg").textContent = "₹" + fmt(d.average);
-  document.getElementById("stat-max").textContent = "₹" + fmt(d.max);
-  document.getElementById("stat-min").textContent = "₹" + fmt(d.min);
+  document.getElementById("stat-avg").textContent   = "₹" + fmt(d.average);
+  document.getElementById("stat-max").textContent   = "₹" + fmt(d.max);
+  document.getElementById("stat-min").textContent   = "₹" + fmt(d.min);
 }
 
 /* ───────────────── CATEGORIES ───────────────── */
 
 async function loadCategories() {
-
-  const res = await api("/categories");
+  const res  = await api("/categories");
   categories = await res.json();
-
   populateCategorySelects();
   renderCatList();
 }
 
 function getCatColor(name) {
-
   const cat = categories.find(c => c.name === name);
   return cat ? cat.color : "#6366f1";
 }
 
 function populateCategorySelects() {
-
   ["m-category", "cat-filter"].forEach(id => {
-
     const sel = document.getElementById(id);
-
     if (!sel) return;
-
     const oldValue = sel.value;
-
     const isFilter = id === "cat-filter";
-
-    sel.innerHTML = isFilter
-      ? `<option value="">All Categories</option>`
-      : "";
-
+    sel.innerHTML  = isFilter ? `<option value="">All Categories</option>` : "";
     categories.forEach(c => {
-      sel.innerHTML += `
-        <option value="${c.name}">
-          ${c.name}
-        </option>
-      `;
+      sel.innerHTML += `<option value="${escHtml(c.name)}">${escHtml(c.name)}</option>`;
     });
-
     sel.value = oldValue;
   });
 }
 
 function renderCatList() {
-
   const el = document.getElementById("cat-list");
-
   if (!el) return;
-
+  if (!categories.length) {
+    el.innerHTML = `<p style="color:var(--muted);font-size:.85rem;">No categories yet.</p>`;
+    return;
+  }
   el.innerHTML = categories.map(c => `
     <span class="cat-chip" style="background:${c.color}">
-      ${c.name}
-      <button class="del-cat"
-        onclick="deleteCategory(${c.id})">
-        ✕
-      </button>
+      ${escHtml(c.name)}
+      <button class="del-cat" onclick="deleteCategory(${c.id})" title="Delete">✕</button>
     </span>
   `).join("");
 }
 
-/* ───────────────── ADD CATEGORY ───────────────── */
+function openCatModal() {
+  renderCatList();
+  openModal("cat-modal");
+}
 
 async function addCategory() {
-
-  const name = document.getElementById("new-cat-name").value.trim();
+  const name  = document.getElementById("new-cat-name").value.trim();
   const color = document.getElementById("new-cat-color").value;
+
+  if (!name) { toast("Please enter a category name.", "error"); return; }
 
   const res = await api("/categories", {
     method: "POST",
-    body: JSON.stringify({
-      name,
-      color
-    })
+    body: JSON.stringify({ name, color })
   });
-
   const d = await res.json();
 
-  if (!res.ok) {
-    toast(d.error, "error");
-    return;
-  }
+  if (!res.ok) { toast(d.error || "Failed to add category", "error"); return; }
 
   document.getElementById("new-cat-name").value = "";
-
   await loadCategories();
-
-  toast("Category added");
+  toast("Category added ✓");
 }
 
-/* ───────────────── DELETE CATEGORY ───────────────── */
-
 async function deleteCategory(id) {
-
-  await api(`/categories/${id}`, {
-    method: "DELETE"
-  });
-
+  if (!confirm("Delete this category?")) return;
+  const res = await api(`/categories/${id}`, { method: "DELETE" });
+  if (!res.ok) { toast("Failed to delete category", "error"); return; }
   await loadCategories();
-
-  toast("Deleted");
+  toast("Category deleted");
 }
 
 /* ───────────────── LOAD EXPENSES ───────────────── */
 
 async function loadExpenses(page = 1) {
-
   currentPage = page;
 
-  const search =
-    document.getElementById("search-input").value;
+  const search   = document.getElementById("search-input").value;
+  const category = document.getElementById("cat-filter").value;
+  const sort     = document.getElementById("sort-select").value;
 
-  const category =
-    document.getElementById("cat-filter").value;
-
-  const sort =
-    document.getElementById("sort-select").value;
-
-  const params = new URLSearchParams({
-    page,
-    limit: 15,
-    sort
-  });
-
-  if (search) params.set("search", search);
+  const params = new URLSearchParams({ page, limit: 15, sort });
+  if (search)   params.set("search",   search);
   if (category) params.set("category", category);
 
-  const res = await api(`/expenses?${params}`);
-
-  const d = await res.json();
-
-  renderExpenses(d.data);
-  renderPagination(d.pagination);
+  try {
+    const res = await api(`/expenses?${params}`);
+    const d   = await res.json();
+    renderExpenses(d.data || []);
+    renderPagination(d.pagination || { page: 1, totalPages: 1 });
+  } catch (err) {
+    console.error(err);
+    toast("Failed to load expenses", "error");
+  }
 }
 
-/* ───────────────── RENDER ───────────────── */
+/* ───────────────── RENDER EXPENSES ───────────────── */
 
 function renderExpenses(data) {
-
   const list = document.getElementById("expense-list");
 
-  if (!data.length) {
+  if (!data || !data.length) {
     list.innerHTML = `
       <div class="empty">
-        No expenses
-      </div>
-    `;
+        <div class="empty-icon">🧾</div>
+        <p>No expenses found.<br>Add your first one!</p>
+      </div>`;
     return;
   }
 
-  list.innerHTML = data.map(exp => `
+  list.innerHTML = data.map(exp => {
+    const color    = getCatColor(exp.category);
+    const checked  = selectedIds.has(exp.id) ? "checked" : "";
+    const noteHtml = exp.note
+      ? `<div class="expense-note">${escHtml(exp.note)}</div>`
+      : "";
 
-    <div class="expense-item">
-
-      <div class="expense-info">
-        <div class="expense-title">
-          ${escHtml(exp.title)}
+    return `
+      <div class="expense-item" id="exp-${exp.id}">
+        <input type="checkbox" ${checked}
+          style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex-shrink:0;"
+          onchange="toggleSelect(${exp.id}, this.checked)"/>
+        <div class="expense-cat-dot" style="background:${color}"></div>
+        <div class="expense-info">
+          <div class="expense-title">${escHtml(exp.title)}</div>
+          <div class="expense-meta">${escHtml(exp.category)} · ${fmtDate(exp.created_at)}</div>
+          ${noteHtml}
         </div>
-
-        <div class="expense-meta">
-          ${exp.category}
+        <div class="expense-amount">₹${fmt(exp.amount)}</div>
+        <div class="expense-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openEditModal(${exp.id})" title="Edit">✏</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteExpense(${exp.id})" title="Delete">🗑</button>
         </div>
       </div>
+    `;
+  }).join("");
+}
 
-      <div class="expense-amount">
-        ₹${fmt(exp.amount)}
-      </div>
+/* ───────────────── BULK SELECT ───────────────── */
 
-      <div class="expense-actions">
+function toggleSelect(id, checked) {
+  if (checked) selectedIds.add(id);
+  else         selectedIds.delete(id);
+  updateBulkBar();
+}
 
-        <button class="btn btn-ghost btn-sm"
-          onclick="openEditModal(${exp.id})">
-          ✏
-        </button>
+function updateBulkBar() {
+  const bar = document.getElementById("bulk-bar");
+  const cnt = document.getElementById("selected-count");
+  if (selectedIds.size > 0) {
+    bar.classList.add("visible");
+    cnt.textContent = selectedIds.size;
+  } else {
+    bar.classList.remove("visible");
+  }
+}
 
-        <button class="btn btn-danger btn-sm"
-          onclick="deleteExpense(${exp.id})">
-          🗑
-        </button>
+function clearSelection() {
+  selectedIds.clear();
+  updateBulkBar();
+  // Uncheck all checkboxes
+  document.querySelectorAll("#expense-list input[type=checkbox]")
+    .forEach(cb => (cb.checked = false));
+}
 
-      </div>
+async function bulkDelete() {
+  if (!selectedIds.size) return;
+  if (!confirm(`Delete ${selectedIds.size} expense(s)?`)) return;
 
-    </div>
-
-  `).join("");
+  try {
+    const res = await api("/bulk-delete", {
+      method: "POST",
+      body: JSON.stringify({ ids: [...selectedIds] })
+    });
+    if (!res.ok) { toast("Bulk delete failed", "error"); return; }
+    selectedIds.clear();
+    updateBulkBar();
+    toast(`Deleted ${selectedIds.size || "selected"} expenses`);
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+    toast("Error deleting expenses", "error");
+  }
 }
 
 /* ───────────────── PAGINATION ───────────────── */
 
 function renderPagination(p) {
-
   const el = document.getElementById("pagination");
-
-  if (p.totalPages <= 1) {
-    el.innerHTML = "";
-    return;
-  }
+  if (!p || p.totalPages <= 1) { el.innerHTML = ""; return; }
 
   let html = `<div class="pagination">`;
-
   for (let i = 1; i <= p.totalPages; i++) {
-    html += `
-      <button
-        class="page-btn ${i === p.page ? "active" : ""}"
-        onclick="loadExpenses(${i})">
-        ${i}
-      </button>
-    `;
+    html += `<button class="page-btn ${i === p.page ? "active" : ""}" onclick="loadExpenses(${i})">${i}</button>`;
   }
-
   html += `</div>`;
-
   el.innerHTML = html;
 }
 
-/* ───────────────── SAVE ───────────────── */
+/* ───────────────── SAVE EXPENSE ───────────────── */
 
 async function saveExpense() {
+  const title    = document.getElementById("m-title").value.trim();
+  const amount   = document.getElementById("m-amount").value.trim();
+  const category = document.getElementById("m-category").value;
+  const note     = document.getElementById("m-note").value.trim();
 
-  const title =
-    document.getElementById("m-title").value.trim();
-
-  const amount =
-    document.getElementById("m-amount").value;
-
-  const category =
-    document.getElementById("m-category").value;
-
-  const note =
-    document.getElementById("m-note").value.trim();
-
-  const url = editingId
-    ? `/update-expense/${editingId}`
-    : `/add-expense`;
-
-  const method = editingId ? "PUT" : "POST";
-
-  const res = await api(url, {
-    method,
-    body: JSON.stringify({
-      title,
-      amount,
-      category,
-      note
-    })
-  });
-
-  const d = await res.json();
-
-  if (!res.ok) {
-    toast(d.error, "error");
+  // Client-side validation
+  if (!title) {
+    toast("Please enter a title.", "error");
+    document.getElementById("m-title").focus();
+    return;
+  }
+  if (!amount || isNaN(amount) || Number(amount) <= 0) {
+    toast("Please enter a valid amount greater than 0.", "error");
+    document.getElementById("m-amount").focus();
     return;
   }
 
-  closeModal("expense-modal");
+  const saveBtn = document.getElementById("modal-save-btn");
+  saveBtn.textContent = "Saving…";
+  saveBtn.disabled    = true;
 
-  toast(editingId ? "Updated" : "Added");
+  try {
+    const url    = editingId ? `/update-expense/${editingId}` : `/add-expense`;
+    const method = editingId ? "PUT" : "POST";
 
-  await refreshAll();
+    const res = await api(url, {
+      method,
+      body: JSON.stringify({ title, amount: Number(amount), category, note })
+    });
+
+    const d = await res.json();
+
+    if (!res.ok) {
+      toast(d.error || "Failed to save expense.", "error");
+      return;
+    }
+
+    closeModal("expense-modal");
+    toast(editingId ? "Expense updated ✓" : "Expense added ✓");
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+    toast("Network error while saving.", "error");
+  } finally {
+    saveBtn.textContent = "Save";
+    saveBtn.disabled    = false;
+  }
 }
 
-/* ───────────────── DELETE ───────────────── */
+/* ───────────────── DELETE EXPENSE ───────────────── */
 
 async function deleteExpense(id) {
+  if (!confirm("Delete this expense?")) return;
 
-  if (!confirm("Delete expense?")) return;
-
-  await api(`/delete-expense/${id}`, {
-    method: "DELETE"
-  });
-
-  toast("Deleted");
-
-  await refreshAll();
+  try {
+    const res = await api(`/delete-expense/${id}`, { method: "DELETE" });
+    if (!res.ok) { toast("Failed to delete", "error"); return; }
+    toast("Expense deleted");
+    await refreshAll();
+  } catch (err) {
+    console.error(err);
+    toast("Error deleting expense", "error");
+  }
 }
 
-/* ───────────────── SINGLE ───────────────── */
+/* ───────────────── EDIT MODAL ───────────────── */
 
 async function openEditModal(id) {
+  try {
+    const res = await api(`/expenses/${id}`);
+    if (!res.ok) { toast("Could not load expense", "error"); return; }
+    const exp = await res.json();
 
-  const res = await api(`/expenses/${id}`);
+    editingId = id;
+    document.getElementById("modal-title").textContent = "Edit Expense";
+    document.getElementById("m-title").value           = exp.title    || "";
+    document.getElementById("m-amount").value          = exp.amount   || "";
+    document.getElementById("m-note").value            = exp.note     || "";
 
-  const exp = await res.json();
+    // Wait for categories to populate then set value
+    await loadCategories();
+    document.getElementById("m-category").value = exp.category || "";
 
-  editingId = id;
-
-  document.getElementById("m-title").value = exp.title;
-  document.getElementById("m-amount").value = exp.amount;
-  document.getElementById("m-category").value = exp.category;
-  document.getElementById("m-note").value = exp.note || "";
-
-  openModal("expense-modal");
+    openModal("expense-modal");
+  } catch (err) {
+    console.error(err);
+    toast("Error loading expense", "error");
+  }
 }
 
-/* ───────────────── REFRESH ───────────────── */
+/* ───────────────── ADD MODAL ───────────────── */
 
-async function refreshAll() {
-
-  await Promise.all([
-    loadSummary(),
-    loadExpenses(currentPage),
-    loadChart(currentChartType)
-  ]);
+function openAddModal() {
+  editingId = null;
+  document.getElementById("modal-title").textContent = "Add Expense";
+  document.getElementById("m-title").value           = "";
+  document.getElementById("m-amount").value          = "";
+  document.getElementById("m-note").value            = "";
+  // Reset category to first option
+  const catSel = document.getElementById("m-category");
+  if (catSel.options.length) catSel.selectedIndex = 0;
+  openModal("expense-modal");
 }
 
 /* ───────────────── MODALS ───────────────── */
@@ -1057,109 +971,201 @@ async function refreshAll() {
 function openModal(id) {
   document.getElementById(id).classList.add("open");
 }
-
 function closeModal(id) {
   document.getElementById(id).classList.remove("open");
 }
 
-function openAddModal() {
+// Close modal on overlay click
+document.querySelectorAll(".modal-overlay").forEach(overlay => {
+  overlay.addEventListener("click", function(e) {
+    if (e.target === this) closeModal(this.id);
+  });
+});
 
-  editingId = null;
+// Close on Escape
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal-overlay.open")
+      .forEach(m => closeModal(m.id));
+  }
+});
 
-  document.getElementById("m-title").value = "";
-  document.getElementById("m-amount").value = "";
-  document.getElementById("m-note").value = "";
+/* ───────────────── REFRESH ALL ───────────────── */
 
-  openModal("expense-modal");
+async function refreshAll() {
+  await Promise.all([
+    loadSummary(),
+    loadExpenses(currentPage),
+    loadChart(currentChartType)
+  ]);
 }
 
 /* ───────────────── CHARTS ───────────────── */
 
-async function loadChart(type) {
+const CHART_COLORS = [
+  "#e8ff4d","#4dffb4","#ff4d6d","#4d9fff","#ff9f4d",
+  "#b44dff","#4dfff0","#ff4db3","#a0ff4d","#4d6fff"
+];
 
+async function loadChart(type) {
   currentChartType = type;
 
-  let endpoint = "/chart-data";
+  const endpointMap = {
+    daily:    "/chart-data",
+    monthly:  "/chart-data/monthly",
+    category: "/chart-data/category"
+  };
 
-  if (type === "monthly") {
-    endpoint = "/chart-data/monthly";
-  }
+  try {
+    const res  = await api(endpointMap[type] || "/chart-data");
+    const data = await res.json();
 
-  if (type === "category") {
-    endpoint = "/chart-data/category";
-  }
+    if (mainChart) { mainChart.destroy(); mainChart = null; }
 
-  const res = await api(endpoint);
+    const ctx = document.getElementById("mainChart");
 
-  const data = await res.json();
+    const baseConfig = {
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: type === "category", labels: { color: "#eef0f5", font: { family: "'DM Mono'" } } },
+          tooltip: { backgroundColor: "#1e2229", titleColor: "#e8ff4d", bodyColor: "#eef0f5", borderColor: "#2a2f3a", borderWidth: 1 }
+        }
+      }
+    };
 
-  if (mainChart) {
-    mainChart.destroy();
-  }
-
-  const ctx =
-    document.getElementById("mainChart");
-
-  if (type === "category") {
+    if (type === "category") {
+      mainChart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: data.map(x => x.category),
+          datasets: [{
+            data:            data.map(x => Number(x.total)),
+            backgroundColor: data.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+            borderColor:     "#0d0f14",
+            borderWidth:     2
+          }]
+        },
+        options: {
+          ...baseConfig.options,
+          cutout: "60%"
+        }
+      });
+      return;
+    }
 
     mainChart = new Chart(ctx, {
-      type: "doughnut",
+      type: "bar",
       data: {
-        labels: data.map(x => x.category),
+        labels: data.map(x => x.date || x.month),
         datasets: [{
-          data: data.map(x => Number(x.total))
+          label: type === "monthly" ? "Monthly Spend" : "Daily Spend",
+          data:            data.map(x => Number(x.total)),
+          backgroundColor: "#e8ff4d33",
+          borderColor:     "#e8ff4d",
+          borderWidth:     2,
+          borderRadius:    4
         }]
+      },
+      options: {
+        ...baseConfig.options,
+        scales: {
+          x: { ticks: { color: "#6b7280", maxRotation: 45 }, grid: { color: "#2a2f3a" } },
+          y: { ticks: { color: "#6b7280" }, grid: { color: "#2a2f3a" } }
+        }
       }
     });
-
-    return;
+  } catch (err) {
+    console.error("Chart error:", err);
   }
-
-  mainChart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: data.map(x => x.date || x.month),
-      datasets: [{
-        data: data.map(x => Number(x.total))
-      }]
-    }
-  });
 }
 
-/* ───────────────── SWITCH CHART ───────────────── */
-
 function switchChart(type, btn) {
-
-  document.querySelectorAll(".chart-tab")
-    .forEach(x => x.classList.remove("active"));
-
+  document.querySelectorAll(".chart-tab").forEach(x => x.classList.remove("active"));
   btn.classList.add("active");
-
   loadChart(type);
 }
 
-/* ───────────────── EXPORT ───────────────── */
+/* ───────────────── DATE FILTER ───────────────── */
+
+async function filterByDate() {
+  const start = document.getElementById("filter-start").value;
+  const end   = document.getElementById("filter-end").value;
+  const el    = document.getElementById("filter-results");
+
+  if (!start || !end) {
+    toast("Please select both start and end dates.", "error");
+    return;
+  }
+  if (start > end) {
+    toast("Start date must be before end date.", "error");
+    return;
+  }
+
+  try {
+    const res  = await api(`/expenses/filter/date?start=${start}&end=${end}`);
+    const data = await res.json();
+
+    if (!data.length) {
+      el.innerHTML = `<p style="color:var(--muted);font-size:.85rem;">No expenses in this range.</p>`;
+      return;
+    }
+
+    const total = data.reduce((s, e) => s + Number(e.amount), 0);
+
+    el.innerHTML = `
+      <div class="filter-summary">
+        ${data.length} expense(s) · Total: ₹${fmt(total)}
+      </div>
+      ${data.map(exp => `
+        <div class="filter-result-item">
+          <span>${escHtml(exp.title)} <span style="color:var(--muted);font-size:.75rem;">${escHtml(exp.category)}</span></span>
+          <span style="color:var(--accent);font-family:var(--mono);">₹${fmt(exp.amount)}</span>
+        </div>
+      `).join("")}
+    `;
+  } catch (err) {
+    console.error(err);
+    toast("Error fetching filtered results", "error");
+  }
+}
+
+function clearFilter() {
+  document.getElementById("filter-start").value = "";
+  document.getElementById("filter-end").value   = "";
+  document.getElementById("filter-results").innerHTML = "";
+}
+
+/* ───────────────── EXPORT CSV ───────────────── */
 
 function exportCSV() {
-  window.open(`${BASE_URL}/export/csv`);
+  if (!token) { toast("Please log in first", "error"); return; }
+  // Open with token in query string isn't safe; use fetch + blob instead
+  api("/export/csv").then(res => {
+    if (!res.ok) { toast("Export failed", "error"); return; }
+    return res.blob();
+  }).then(blob => {
+    if (!blob) return;
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = "expenses.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }).catch(() => toast("Export failed", "error"));
 }
 
-/* ───────────────── SEARCH ───────────────── */
+/* ───────────────── SEARCH DEBOUNCE ───────────────── */
 
 function debounceSearch() {
-
   clearTimeout(searchTimer);
-
-  searchTimer = setTimeout(() => {
-    loadExpenses(1);
-  }, 400);
+  searchTimer = setTimeout(() => loadExpenses(1), 400);
 }
 
-/* ───────────────── START ───────────────── */
+/* ───────────────── KICK OFF ───────────────── */
 
-if (token) {
-  init();
-}
+if (token) init();
 
 </script>
 </body>
