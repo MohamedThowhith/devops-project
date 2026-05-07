@@ -749,34 +749,30 @@ async function loadSummary() {
 /* ───────────────── CATEGORIES ───────────────── */
 
 async function loadCategories() {
-  try {
-    const res = await fetch(`${BASE_URL}/categories`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`
-      }
-    });
 
-    categories = await res.json();
+  const res = await api("/categories");
+  categories = await res.json();
 
-    populateCategorySelects();
-    renderCatList();
-
-  } catch (err) {
-    console.error(err);
-    toast("Failed to load categories", "error");
-  }
+  populateCategorySelects();
+  renderCatList();
 }
 
 function getCatColor(name) {
+
   const cat = categories.find(c => c.name === name);
   return cat ? cat.color : "#6366f1";
 }
 
 function populateCategorySelects() {
+
   ["m-category", "cat-filter"].forEach(id => {
 
     const sel = document.getElementById(id);
+
+    if (!sel) return;
+
     const oldValue = sel.value;
+
     const isFilter = id === "cat-filter";
 
     sel.innerHTML = isFilter
@@ -796,109 +792,62 @@ function populateCategorySelects() {
 }
 
 function renderCatList() {
+
   const el = document.getElementById("cat-list");
 
-  if (!categories.length) {
-    el.innerHTML = `
-      <span style="color:var(--muted)">
-        No categories
-      </span>
-    `;
-    return;
-  }
+  if (!el) return;
 
   el.innerHTML = categories.map(c => `
     <span class="cat-chip" style="background:${c.color}">
       ${c.name}
-
-      <button
-        class="del-cat"
-        onclick="deleteCategory(${c.id}, '${c.name}')"
-      >
+      <button class="del-cat"
+        onclick="deleteCategory(${c.id})">
         ✕
       </button>
     </span>
   `).join("");
 }
 
+/* ───────────────── ADD CATEGORY ───────────────── */
+
 async function addCategory() {
 
-  const name = document
-    .getElementById("new-cat-name")
-    .value
-    .trim();
+  const name = document.getElementById("new-cat-name").value.trim();
+  const color = document.getElementById("new-cat-color").value;
 
-  const color = document
-    .getElementById("new-cat-color")
-    .value;
+  const res = await api("/categories", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      color
+    })
+  });
 
-  if (!name) {
-    toast("Enter category name", "error");
+  const d = await res.json();
+
+  if (!res.ok) {
+    toast(d.error, "error");
     return;
   }
 
-  try {
+  document.getElementById("new-cat-name").value = "";
 
-    const res = await fetch(`${BASE_URL}/categories`, {
-      method: "POST",
+  await loadCategories();
 
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`
-      },
-
-      body: JSON.stringify({
-        name,
-        color
-      })
-    });
-
-    const d = await res.json();
-
-    if (!res.ok) {
-      toast(d.error || "Failed", "error");
-      return;
-    }
-
-    document.getElementById("new-cat-name").value = "";
-
-    await loadCategories();
-
-    toast("Category added ✅");
-
-  } catch (err) {
-    console.error(err);
-    toast("Network error", "error");
-  }
+  toast("Category added");
 }
 
-async function deleteCategory(id, name) {
+/* ───────────────── DELETE CATEGORY ───────────────── */
 
-  if (!confirm(`Delete "${name}"?`)) return;
+async function deleteCategory(id) {
 
-  try {
+  await api(`/categories/${id}`, {
+    method: "DELETE"
+  });
 
-    const res = await fetch(`${BASE_URL}/categories/${id}`, {
-      method: "DELETE",
+  await loadCategories();
 
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`
-      }
-    });
-
-    if (!res.ok) {
-      toast("Delete failed", "error");
-      return;
-    }
-
-    await loadCategories();
-
-    toast("Category deleted");
-
-  } catch (err) {
-    console.error(err);
-    toast("Network error", "error");
-  }
+  toast("Deleted");
 }
 
 /* ───────────────── LOAD EXPENSES ───────────────── */
@@ -1213,6 +1162,5 @@ if (token) {
 }
 
 </script>
-
 </body>
 </html>
