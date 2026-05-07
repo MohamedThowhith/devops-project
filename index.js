@@ -1,10 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
-const { Parser } = require("json2csv");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-
 require("dotenv").config();
 
 const app = express();
@@ -12,13 +10,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-/* ───────────────── DATABASE ───────────────── */
+/* ───────────────── DB ───────────────── */
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL
-    ? { rejectUnauthorized: false }
-    : false,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 /* ───────────────── ROOT ───────────────── */
@@ -31,29 +29,34 @@ app.get("/health", (req, res) => {
   res.json({ status: "OK" });
 });
 
-/* ───────────────── JWT AUTH ───────────────── */
+/* ───────────────── AUTH MIDDLEWARE ───────────────── */
 
-function auth(req, res, next) {
-  const token = req.headers.authorization?.split(" ")[1];
+function authenticateToken(req, res, next) {
 
-  if (!token) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
     return res.status(401).json({
-      error: "Unauthorized",
+      error: "Access denied"
     });
   }
 
+  const token = authHeader.split(" ")[1];
+
   try {
-    const decoded = jwt.verify(
+
+    const verified = jwt.verify(
       token,
       process.env.JWT_SECRET
     );
 
-    req.user = decoded;
+    req.user = verified;
 
     next();
+
   } catch {
-    return res.status(401).json({
-      error: "Invalid token",
+    res.status(403).json({
+      error: "Invalid token"
     });
   }
 }
@@ -61,55 +64,44 @@ function auth(req, res, next) {
 /* ───────────────── INIT DB ───────────────── */
 
 async function initDB() {
-  try {
-    console.log("🔄 Connecting DB...");
 
-    /* USERS */
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        email TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL
-      )
-    `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL
+    )
+  `);
 
-    /* CATEGORIES */
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS categories (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        name TEXT NOT NULL,
-        color TEXT DEFAULT '#6366f1'
-      )
-    `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      color TEXT DEFAULT '#6366f1'
+    )
+  `);
 
-    /* EXPENSES */
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS expenses (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        title TEXT NOT NULL,
-        amount NUMERIC NOT NULL,
-        category TEXT DEFAULT 'General',
-        note TEXT DEFAULT '',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS expenses (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      amount NUMERIC NOT NULL,
+      category TEXT DEFAULT 'General',
+      note TEXT DEFAULT '',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
-    console.log("✅ Database Ready");
-  } catch (err) {
-    console.error("DB INIT ERROR:", err);
-    throw err;
-  }
+  console.log("✅ Database Ready");
 }
 
 /* ───────────────── REGISTER ───────────────── */
 
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-
 app.post("/register", async (req, res) => {
+
   try {
 
     const { name, email, password } = req.body;
@@ -120,8 +112,6 @@ app.post("/register", async (req, res) => {
       });
     }
 
-    /* CHECK EXISTING USER */
-
     const existing = await pool.query(
       "SELECT * FROM users WHERE email=$1",
       [email]
@@ -129,15 +119,11 @@ app.post("/register", async (req, res) => {
 
     if (existing.rows.length) {
       return res.status(400).json({
-        error: "Email already registered"
+        error: "Email already exists"
       });
     }
 
-    /* HASH PASSWORD */
-
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    /* CREATE USER */
 
     const user = await pool.query(
       `
@@ -150,28 +136,26 @@ app.post("/register", async (req, res) => {
 
     const userId = user.rows[0].id;
 
-    /* CREATE DEFAULT CATEGORIES */
+    /* DEFAULT CATEGORIES */
 
     await pool.query(
       `
-      INSERT INTO categories (user_id, name, color)
+      INSERT INTO categories(user_id,name,color)
       VALUES
-        ($1, 'Food', '#ff6b6b'),
-        ($1, 'Travel', '#4ecdc4'),
-        ($1, 'Shopping', '#ffe66d'),
-        ($1, 'Bills', '#5f27cd'),
-        ($1, 'Entertainment', '#ff9f43'),
-        ($1, 'General', '#6366f1')
+        ($1,'Food','#ff6b6b'),
+        ($1,'Travel','#4ecdc4'),
+        ($1,'Shopping','#ffe66d'),
+        ($1,'Bills','#5f27cd'),
+        ($1,'Entertainment','#ff9f43'),
+        ($1,'General','#6366f1')
       `,
       [userId]
     );
 
-    /* JWT TOKEN */
-
     const token = jwt.sign(
       {
         id: userId,
-        email: user.rows[0].email
+        email
       },
       process.env.JWT_SECRET,
       {
@@ -197,7 +181,9 @@ app.post("/register", async (req, res) => {
 /* ───────────────── LOGIN ───────────────── */
 
 app.post("/login", async (req, res) => {
+
   try {
+
     const { email, password } = req.body;
 
     const user = await pool.query(
@@ -207,7 +193,7 @@ app.post("/login", async (req, res) => {
 
     if (!user.rows.length) {
       return res.status(400).json({
-        error: "Invalid credentials",
+        error: "Invalid email"
       });
     }
 
@@ -218,14 +204,19 @@ app.post("/login", async (req, res) => {
 
     if (!valid) {
       return res.status(400).json({
-        error: "Invalid credentials",
+        error: "Invalid password"
       });
     }
 
     const token = jwt.sign(
-      { id: user.rows[0].id },
+      {
+        id: user.rows[0].id,
+        email
+      },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      {
+        expiresIn: "7d"
+      }
     );
 
     res.json({
@@ -233,170 +224,72 @@ app.post("/login", async (req, res) => {
       user: {
         id: user.rows[0].id,
         name: user.rows[0].name,
-        email: user.rows[0].email,
-      },
+        email: user.rows[0].email
+      }
     });
 
   } catch (err) {
+
+    console.error(err);
+
     res.status(500).json({
-      error: err.message,
+      error: err.message
     });
   }
 });
 
 /* ───────────────── SUMMARY ───────────────── */
 
-app.get("/summary", auth, async (req, res) => {
-  try {
-    const r = await pool.query(
-      `
-      SELECT
-        COUNT(*) count,
-        COALESCE(SUM(amount),0) total,
-        COALESCE(AVG(amount),0) average,
-        COALESCE(MAX(amount),0) max,
-        COALESCE(MIN(amount),0) min
-      FROM expenses
-      WHERE user_id=$1
-      `,
-      [req.user.id]
-    );
+app.get("/summary", authenticateToken, async (req, res) => {
 
-    res.json(r.rows[0]);
+  const r = await pool.query(
+    `
+    SELECT
+      COUNT(*) count,
+      COALESCE(SUM(amount),0) total,
+      COALESCE(AVG(amount),0) average,
+      COALESCE(MAX(amount),0) max,
+      COALESCE(MIN(amount),0) min
+    FROM expenses
+    WHERE user_id=$1
+    `,
+    [req.user.id]
+  );
 
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
-  }
+  res.json(r.rows[0]);
 });
 
 /* ───────────────── GET EXPENSES ───────────────── */
 
-app.get("/expenses", auth, async (req, res) => {
-  try {
-    const page = Number(req.query.page || 1);
-    const limit = Number(req.query.limit || 15);
-    const search = req.query.search || "";
-    const category = req.query.category || "";
-    const sort = req.query.sort || "id";
+app.get("/expenses", authenticateToken, async (req, res) => {
 
-    const order =
-      (req.query.order || "DESC").toUpperCase() === "ASC"
-        ? "ASC"
-        : "DESC";
+  const r = await pool.query(
+    `
+    SELECT *
+    FROM expenses
+    WHERE user_id=$1
+    ORDER BY created_at DESC
+    `,
+    [req.user.id]
+  );
 
-    const allowedSort = [
-      "id",
-      "title",
-      "amount",
-      "category",
-      "created_at",
-    ];
-
-    const sortColumn = allowedSort.includes(sort)
-      ? sort
-      : "id";
-
-    const offset = (page - 1) * limit;
-
-    let values = [req.user.id];
-    let where = ["user_id=$1"];
-
-    if (search) {
-      values.push(`%${search}%`);
-
-      where.push(
-        `(title ILIKE $${values.length} OR note ILIKE $${values.length})`
-      );
-    }
-
-    if (category) {
-      values.push(category);
-
-      where.push(`category=$${values.length}`);
-    }
-
-    const whereClause = `WHERE ${where.join(" AND ")}`;
-
-    const data = await pool.query(
-      `
-      SELECT *
-      FROM expenses
-      ${whereClause}
-      ORDER BY ${sortColumn} ${order}
-      LIMIT $${values.length + 1}
-      OFFSET $${values.length + 2}
-      `,
-      [...values, limit, offset]
-    );
-
-    const count = await pool.query(
-      `
-      SELECT COUNT(*)
-      FROM expenses
-      ${whereClause}
-      `,
-      values
-    );
-
-    const total = Number(count.rows[0].count);
-
-    res.json({
-      data: data.rows,
-      pagination: {
-        page,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
-
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
-  }
-});
-
-/* ───────────────── SINGLE EXPENSE ───────────────── */
-
-app.get("/expenses/:id", auth, async (req, res) => {
-  try {
-    const r = await pool.query(
-      `
-      SELECT *
-      FROM expenses
-      WHERE id=$1 AND user_id=$2
-      `,
-      [req.params.id, req.user.id]
-    );
-
-    if (!r.rows.length) {
-      return res.status(404).json({
-        error: "Expense not found",
-      });
-    }
-
-    res.json(r.rows[0]);
-
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
-  }
+  res.json({
+    data: r.rows
+  });
 });
 
 /* ───────────────── ADD EXPENSE ───────────────── */
 
-app.post("/add-expense", auth, async (req, res) => {
-  try {
-    const { title, amount, category, note } = req.body;
+app.post("/add-expense", authenticateToken, async (req, res) => {
 
-    if (!title || amount == null) {
-      return res.status(400).json({
-        error: "Title and amount required",
-      });
-    }
+  try {
+
+    const {
+      title,
+      amount,
+      category,
+      note
+    } = req.body;
 
     const r = await pool.query(
       `
@@ -415,116 +308,47 @@ app.post("/add-expense", auth, async (req, res) => {
         title,
         amount,
         category || "General",
-        note || "",
+        note || ""
       ]
     );
 
     res.json(r.rows[0]);
 
   } catch (err) {
+
+    console.error(err);
+
     res.status(500).json({
-      error: err.message,
-    });
-  }
-});
-
-/* ───────────────── UPDATE EXPENSE ───────────────── */
-
-app.put("/update-expense/:id", auth, async (req, res) => {
-  try {
-    const { title, amount, category, note } = req.body;
-
-    const r = await pool.query(
-      `
-      UPDATE expenses
-      SET
-        title=$1,
-        amount=$2,
-        category=$3,
-        note=$4
-      WHERE id=$5
-      AND user_id=$6
-      RETURNING *
-      `,
-      [
-        title,
-        amount,
-        category,
-        note,
-        req.params.id,
-        req.user.id,
-      ]
-    );
-
-    if (!r.rows.length) {
-      return res.status(404).json({
-        error: "Expense not found",
-      });
-    }
-
-    res.json(r.rows[0]);
-
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
+      error: err.message
     });
   }
 });
 
 /* ───────────────── DELETE EXPENSE ───────────────── */
 
-app.delete("/delete-expense/:id", auth, async (req, res) => {
-  try {
-    await pool.query(
-      `
-      DELETE FROM expenses
-      WHERE id=$1
-      AND user_id=$2
-      `,
-      [req.params.id, req.user.id]
-    );
+app.delete("/delete-expense/:id", authenticateToken, async (req, res) => {
 
-    res.json({
-      message: "Deleted",
-    });
+  await pool.query(
+    `
+    DELETE FROM expenses
+    WHERE id=$1 AND user_id=$2
+    `,
+    [
+      req.params.id,
+      req.user.id
+    ]
+  );
 
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
-  }
-});
-
-/* ───────────────── BULK DELETE ───────────────── */
-
-app.delete("/delete-expenses", auth, async (req, res) => {
-  try {
-    const { ids } = req.body;
-
-    await pool.query(
-      `
-      DELETE FROM expenses
-      WHERE id = ANY($1::int[])
-      AND user_id=$2
-      `,
-      [ids, req.user.id]
-    );
-
-    res.json({
-      message: "Deleted selected",
-    });
-
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
-  }
+  res.json({
+    message: "Deleted"
+  });
 });
 
 /* ───────────────── CATEGORIES ───────────────── */
 
-app.get("/categories", auth, async (req, res) => {
-  const r = await pool.query(
+app.get("/categories", authenticateToken, async (req, res) => {
+
+  let r = await pool.query(
     `
     SELECT *
     FROM categories
@@ -534,203 +358,46 @@ app.get("/categories", auth, async (req, res) => {
     [req.user.id]
   );
 
+  if (!r.rows.length) {
+
+    await pool.query(
+      `
+      INSERT INTO categories(user_id,name,color)
+      VALUES
+        ($1,'Food','#ff6b6b'),
+        ($1,'Travel','#4ecdc4'),
+        ($1,'Shopping','#ffe66d'),
+        ($1,'Bills','#5f27cd'),
+        ($1,'Entertainment','#ff9f43'),
+        ($1,'General','#6366f1')
+      `,
+      [req.user.id]
+    );
+
+    r = await pool.query(
+      `
+      SELECT *
+      FROM categories
+      WHERE user_id=$1
+      ORDER BY name
+      `,
+      [req.user.id]
+    );
+  }
+
   res.json(r.rows);
 });
 
-app.post("/categories", auth, async (req, res) => {
-  try {
-    const { name, color } = req.body;
-
-    const r = await pool.query(
-      `
-      INSERT INTO categories(user_id,name,color)
-      VALUES($1,$2,$3)
-      RETURNING *
-      `,
-      [
-        req.user.id,
-        name,
-        color || "#6366f1",
-      ]
-    );
-
-    res.json(r.rows[0]);
-
-  } catch {
-    res.status(400).json({
-      error: "Category exists",
-    });
-  }
-});
-
-app.delete("/categories/:id", auth, async (req, res) => {
-  await pool.query(
-    `
-    DELETE FROM categories
-    WHERE id=$1
-    AND user_id=$2
-    `,
-    [req.params.id, req.user.id]
-  );
-
-  res.json({
-    message: "Deleted",
-  });
-});
-
-/* ───────────────── DATE FILTER ───────────────── */
-
-app.get("/expenses-by-date", auth, async (req, res) => {
-  try {
-    const { start, end } = req.query;
-
-    const r = await pool.query(
-      `
-      SELECT *
-      FROM expenses
-      WHERE user_id=$1
-      AND created_at::date BETWEEN $2 AND $3
-      ORDER BY created_at DESC
-      `,
-      [req.user.id, start, end]
-    );
-
-    res.json(r.rows);
-
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
-  }
-});
-
-/* ───────────────── CHARTS ───────────────── */
-
-app.get("/chart-data", auth, async (req, res) => {
-  try {
-    const range = Number(req.query.range || 30);
-
-    const r = await pool.query(
-      `
-      SELECT
-        TO_CHAR(created_at,'DD Mon') AS date,
-        SUM(amount)::numeric AS total
-      FROM expenses
-      WHERE user_id=$1
-      AND created_at >= NOW() - ($2 || ' days')::interval
-      GROUP BY DATE(created_at), TO_CHAR(created_at,'DD Mon')
-      ORDER BY DATE(created_at)
-      `,
-      [req.user.id, range]
-    );
-
-    res.json(r.rows);
-
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
-  }
-});
-
-app.get("/chart-data/monthly", auth, async (req, res) => {
-  try {
-    const r = await pool.query(
-      `
-      SELECT
-        TO_CHAR(created_at,'Mon YYYY') AS month,
-        SUM(amount)::numeric AS total
-      FROM expenses
-      WHERE user_id=$1
-      GROUP BY DATE_TRUNC('month', created_at),
-               TO_CHAR(created_at,'Mon YYYY')
-      ORDER BY DATE_TRUNC('month', created_at)
-      `,
-      [req.user.id]
-    );
-
-    res.json(r.rows);
-
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
-  }
-});
-
-app.get("/chart-data/category", auth, async (req, res) => {
-  try {
-    const r = await pool.query(
-      `
-      SELECT
-        category,
-        SUM(amount)::numeric AS total
-      FROM expenses
-      WHERE user_id=$1
-      GROUP BY category
-      ORDER BY total DESC
-      `,
-      [req.user.id]
-    );
-
-    res.json(r.rows);
-
-  } catch (err) {
-    res.status(500).json({
-      error: err.message,
-    });
-  }
-});
-
-/* ───────────────── EXPORT CSV ───────────────── */
-
-app.get("/export/csv", auth, async (req, res) => {
-  try {
-    const r = await pool.query(
-      `
-      SELECT
-        id,
-        title,
-        amount,
-        category,
-        note,
-        created_at
-      FROM expenses
-      WHERE user_id=$1
-      ORDER BY created_at DESC
-      `,
-      [req.user.id]
-    );
-
-    const parser = new Parser();
-
-    const csv = parser.parse(r.rows);
-
-    res.header("Content-Type", "text/csv");
-
-    res.attachment("expenses.csv");
-
-    res.send(csv);
-
-  } catch {
-    res.status(500).send("Export failed");
-  }
-});
-
-/* ───────────────── SERVER ───────────────── */
+/* ───────────────── START ───────────────── */
 
 const PORT = process.env.PORT || 3000;
 
 (async () => {
-  try {
-    await initDB();
 
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`🚀 Running on ${PORT}`);
-    });
+  await initDB();
 
-  } catch (err) {
-    console.error(err);
-    process.exit(1);
-  }
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Running on ${PORT}`);
+  });
+
 })();
