@@ -106,22 +106,38 @@ async function initDB() {
 
 /* ───────────────── REGISTER ───────────────── */
 
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+
 app.post("/register", async (req, res) => {
   try {
+
     const { name, email, password } = req.body;
 
-    const exists = await pool.query(
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        error: "All fields required"
+      });
+    }
+
+    /* CHECK EXISTING USER */
+
+    const existing = await pool.query(
       "SELECT * FROM users WHERE email=$1",
       [email]
     );
 
-    if (exists.rows.length) {
+    if (existing.rows.length) {
       return res.status(400).json({
-        error: "Email already exists",
+        error: "Email already registered"
       });
     }
 
-    const hashed = await bcrypt.hash(password, 10);
+    /* HASH PASSWORD */
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    /* CREATE USER */
 
     const user = await pool.query(
       `
@@ -129,23 +145,51 @@ app.post("/register", async (req, res) => {
       VALUES($1,$2,$3)
       RETURNING id,name,email
       `,
-      [name, email, hashed]
+      [name, email, hashedPassword]
     );
 
+    const userId = user.rows[0].id;
+
+    /* CREATE DEFAULT CATEGORIES */
+
+    await pool.query(
+      `
+      INSERT INTO categories (user_id, name, color)
+      VALUES
+        ($1, 'Food', '#ff6b6b'),
+        ($1, 'Travel', '#4ecdc4'),
+        ($1, 'Shopping', '#ffe66d'),
+        ($1, 'Bills', '#5f27cd'),
+        ($1, 'Entertainment', '#ff9f43'),
+        ($1, 'General', '#6366f1')
+      `,
+      [userId]
+    );
+
+    /* JWT TOKEN */
+
     const token = jwt.sign(
-      { id: user.rows[0].id },
+      {
+        id: userId,
+        email: user.rows[0].email
+      },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }
+      {
+        expiresIn: "7d"
+      }
     );
 
     res.json({
       token,
-      user: user.rows[0],
+      user: user.rows[0]
     });
 
   } catch (err) {
+
+    console.error(err);
+
     res.status(500).json({
-      error: err.message,
+      error: err.message
     });
   }
 });
