@@ -470,7 +470,11 @@
 <div id="toast-container"></div>
 
 <script id="r4m4x0">
+
 const BASE_URL = "https://devops-project-nvdd.onrender.com";
+
+let token = localStorage.getItem("token");
+let currentUser = localStorage.getItem("user");
 
 let mainChart = null;
 let currentPage = 1;
@@ -481,9 +485,207 @@ let selectedIds = new Set();
 let searchTimer = null;
 let isFiltered = false;
 
-/* ───────────────── INIT ───────────────── */
-async function init() {
+/* ───────────────── AUTH SCREEN ───────────────── */
+
+if (!token) {
+  document.body.innerHTML = `
+    <div style="
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:#0d0f14;
+      color:white;
+      font-family:sans-serif;
+    ">
+      <div style="
+        width:100%;
+        max-width:400px;
+        background:#161920;
+        padding:30px;
+        border-radius:16px;
+      ">
+        <h2 style="margin-bottom:20px">💸 Expense Tracker</h2>
+
+        <input id="auth-name"
+          placeholder="Name"
+          style="width:100%;padding:12px;margin-bottom:10px;background:#1e2229;border:none;color:white;border-radius:8px"
+        />
+
+        <input id="auth-email"
+          placeholder="Email"
+          type="email"
+          style="width:100%;padding:12px;margin-bottom:10px;background:#1e2229;border:none;color:white;border-radius:8px"
+        />
+
+        <input id="auth-password"
+          placeholder="Password"
+          type="password"
+          style="width:100%;padding:12px;margin-bottom:16px;background:#1e2229;border:none;color:white;border-radius:8px"
+        />
+
+        <div style="display:flex;gap:10px">
+          <button onclick="register()" style="
+            flex:1;
+            padding:12px;
+            border:none;
+            border-radius:8px;
+            background:#e8ff4d;
+            font-weight:bold;
+            cursor:pointer;
+          ">Register</button>
+
+          <button onclick="login()" style="
+            flex:1;
+            padding:12px;
+            border:none;
+            border-radius:8px;
+            background:#4dffb4;
+            font-weight:bold;
+            cursor:pointer;
+          ">Login</button>
+        </div>
+
+        <p id="auth-msg" style="margin-top:15px;color:#ff4d6d"></p>
+      </div>
+    </div>
+  `;
+}
+
+/* ───────────────── API ───────────────── */
+
+async function api(url, options = {}) {
+
+  options.headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {})
+  };
+
+  if (token) {
+    options.headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(BASE_URL + url, options);
+
+  if (res.status === 401) {
+    logout();
+    throw new Error("Unauthorized");
+  }
+
+  return res;
+}
+
+/* ───────────────── AUTH ───────────────── */
+
+async function register() {
+
+  const name = document.getElementById("auth-name").value.trim();
+  const email = document.getElementById("auth-email").value.trim();
+  const password = document.getElementById("auth-password").value.trim();
+
   try {
+
+    const res = await fetch(`${BASE_URL}/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        password
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      document.getElementById("auth-msg").textContent = data.error;
+      return;
+    }
+
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+
+    location.reload();
+
+  } catch {
+    document.getElementById("auth-msg").textContent = "Network error";
+  }
+}
+
+async function login() {
+
+  const email = document.getElementById("auth-email").value.trim();
+  const password = document.getElementById("auth-password").value.trim();
+
+  try {
+
+    const res = await fetch(`${BASE_URL}/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        email,
+        password
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      document.getElementById("auth-msg").textContent = data.error;
+      return;
+    }
+
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+
+    location.reload();
+
+  } catch {
+    document.getElementById("auth-msg").textContent = "Network error";
+  }
+}
+
+function logout() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  location.reload();
+}
+
+/* ───────────────── HEADER USER ───────────────── */
+
+if (token) {
+
+  const user = JSON.parse(currentUser || "{}");
+
+  const header = document.querySelector(".header-actions");
+
+  header.innerHTML += `
+    <span style="
+      color:#e8ff4d;
+      margin-right:10px;
+      font-size:.9rem;
+    ">
+      👋 ${user.name || "User"}
+    </span>
+
+    <button class="btn btn-danger btn-sm" onclick="logout()">
+      Logout
+    </button>
+  `;
+}
+
+/* ───────────────── INIT ───────────────── */
+
+async function init() {
+
+  if (!token) return;
+
+  try {
+
     await Promise.all([
       loadCategories(),
       loadSummary()
@@ -491,15 +693,18 @@ async function init() {
 
     await loadExpenses(1);
     await loadChart("daily");
+
   } catch (err) {
     console.error(err);
-    toast("Failed to initialize app", "error");
   }
 }
 
 /* ───────────────── TOAST ───────────────── */
+
 function toast(msg, type = "success") {
+
   const el = document.createElement("div");
+
   el.className = "toast" + (type === "error" ? " error" : "");
   el.textContent = msg;
 
@@ -512,6 +717,7 @@ function toast(msg, type = "success") {
 }
 
 /* ───────────────── FORMAT ───────────────── */
+
 function fmt(n) {
   return Number(n || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
@@ -523,48 +729,50 @@ function escHtml(s) {
   return String(s || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/>/g, "&gt;");
 }
 
 /* ───────────────── SUMMARY ───────────────── */
-async function loadSummary() {
-  try {
-    const res = await fetch(`${BASE_URL}/summary`);
-    const d = await res.json();
 
-    document.getElementById("stat-total").textContent = "₹" + fmt(d.total);
-    document.getElementById("stat-count").textContent = d.count;
-    document.getElementById("stat-avg").textContent = "₹" + fmt(d.average);
-    document.getElementById("stat-max").textContent = "₹" + fmt(d.max);
-    document.getElementById("stat-min").textContent = "₹" + fmt(d.min);
-  } catch (err) {
-    console.error(err);
-  }
+async function loadSummary() {
+
+  const res = await api("/summary");
+  const d = await res.json();
+
+  document.getElementById("stat-total").textContent = "₹" + fmt(d.total);
+  document.getElementById("stat-count").textContent = d.count;
+  document.getElementById("stat-avg").textContent = "₹" + fmt(d.average);
+  document.getElementById("stat-max").textContent = "₹" + fmt(d.max);
+  document.getElementById("stat-min").textContent = "₹" + fmt(d.min);
 }
 
 /* ───────────────── CATEGORIES ───────────────── */
-async function loadCategories() {
-  try {
-    const res = await fetch(`${BASE_URL}/categories`);
-    categories = await res.json();
 
-    populateCategorySelects();
-    renderCatList();
-  } catch (err) {
-    console.error(err);
-  }
+async function loadCategories() {
+
+  const res = await api("/categories");
+  categories = await res.json();
+
+  populateCategorySelects();
+  renderCatList();
 }
 
 function getCatColor(name) {
+
   const cat = categories.find(c => c.name === name);
   return cat ? cat.color : "#6366f1";
 }
 
 function populateCategorySelects() {
+
   ["m-category", "cat-filter"].forEach(id => {
+
     const sel = document.getElementById(id);
+
+    if (!sel) return;
+
     const oldValue = sel.value;
+
     const isFilter = id === "cat-filter";
 
     sel.innerHTML = isFilter
@@ -572,7 +780,11 @@ function populateCategorySelects() {
       : "";
 
     categories.forEach(c => {
-      sel.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+      sel.innerHTML += `
+        <option value="${c.name}">
+          ${c.name}
+        </option>
+      `;
     });
 
     sel.value = oldValue;
@@ -580,407 +792,206 @@ function populateCategorySelects() {
 }
 
 function renderCatList() {
+
   const el = document.getElementById("cat-list");
 
-  if (!categories.length) {
-    el.innerHTML = `<span style="color:var(--muted)">No categories</span>`;
-    return;
-  }
+  if (!el) return;
 
   el.innerHTML = categories.map(c => `
     <span class="cat-chip" style="background:${c.color}">
       ${c.name}
-      <button class="del-cat" onclick="deleteCategory(${c.id}, '${c.name}')">✕</button>
+      <button class="del-cat"
+        onclick="deleteCategory(${c.id})">
+        ✕
+      </button>
     </span>
   `).join("");
 }
 
+/* ───────────────── ADD CATEGORY ───────────────── */
+
 async function addCategory() {
+
   const name = document.getElementById("new-cat-name").value.trim();
   const color = document.getElementById("new-cat-color").value;
 
-  if (!name) {
-    toast("Enter category name", "error");
+  const res = await api("/categories", {
+    method: "POST",
+    body: JSON.stringify({
+      name,
+      color
+    })
+  });
+
+  const d = await res.json();
+
+  if (!res.ok) {
+    toast(d.error, "error");
     return;
   }
 
-  try {
-    const res = await fetch(`${BASE_URL}/categories`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ name, color })
-    });
+  document.getElementById("new-cat-name").value = "";
 
-    const d = await res.json();
+  await loadCategories();
 
-    if (!res.ok) {
-      toast(d.error, "error");
-      return;
-    }
-
-    document.getElementById("new-cat-name").value = "";
-
-    await loadCategories();
-
-    toast("Category added ✅");
-  } catch {
-    toast("Network error", "error");
-  }
+  toast("Category added");
 }
 
-async function deleteCategory(id, name) {
-  if (!confirm(`Delete "${name}"?`)) return;
+/* ───────────────── DELETE CATEGORY ───────────────── */
 
-  try {
-    await fetch(`${BASE_URL}/categories/${id}`, {
-      method: "DELETE"
-    });
+async function deleteCategory(id) {
 
-    await loadCategories();
+  await api(`/categories/${id}`, {
+    method: "DELETE"
+  });
 
-    toast("Category deleted");
-  } catch {
-    toast("Network error", "error");
-  }
+  await loadCategories();
+
+  toast("Deleted");
 }
 
 /* ───────────────── LOAD EXPENSES ───────────────── */
+
 async function loadExpenses(page = 1) {
-  if (isFiltered) return;
 
   currentPage = page;
-  selectedIds.clear();
-  updateBulkBar();
 
-  const search = document.getElementById("search-input").value.trim();
-  const category = document.getElementById("cat-filter").value;
-  const sort = document.getElementById("sort-select").value;
-  const order = sort === "title" ? "ASC" : "DESC";
+  const search =
+    document.getElementById("search-input").value;
+
+  const category =
+    document.getElementById("cat-filter").value;
+
+  const sort =
+    document.getElementById("sort-select").value;
 
   const params = new URLSearchParams({
     page,
     limit: 15,
-    sort,
-    order
+    sort
   });
 
   if (search) params.set("search", search);
   if (category) params.set("category", category);
 
-  const list = document.getElementById("expense-list");
-  list.innerHTML = `<div style="text-align:center;padding:30px"><div class="spinner"></div></div>`;
+  const res = await api(`/expenses?${params}`);
 
-  try {
-    const res = await fetch(`${BASE_URL}/expenses?${params}`);
-    const d = await res.json();
+  const d = await res.json();
 
-    renderExpenses(d.data);
-    renderPagination(d.pagination);
-  } catch {
-    list.innerHTML = `<div class="empty"><p>Failed to load</p></div>`;
-  }
+  renderExpenses(d.data);
+  renderPagination(d.pagination);
 }
 
+/* ───────────────── RENDER ───────────────── */
+
 function renderExpenses(data) {
+
   const list = document.getElementById("expense-list");
 
-  if (!data || !data.length) {
-    list.innerHTML = `<div class="empty"><div class="empty-icon">🧾</div><p>No expenses found</p></div>`;
+  if (!data.length) {
+    list.innerHTML = `
+      <div class="empty">
+        No expenses
+      </div>
+    `;
     return;
   }
 
-  list.innerHTML = data.map(exp => {
-    const color = getCatColor(exp.category);
-    const date = new Date(exp.created_at).toLocaleDateString("en-IN");
+  list.innerHTML = data.map(exp => `
 
-    return `
-      <div class="expense-item" id="item-${exp.id}">
-        <div class="expense-check">
-          <input type="checkbox" onchange="toggleSelect(${exp.id}, this)">
+    <div class="expense-item">
+
+      <div class="expense-info">
+        <div class="expense-title">
+          ${escHtml(exp.title)}
         </div>
 
-        <div class="expense-cat-dot" style="background:${color}"></div>
-
-        <div class="expense-info">
-          <div class="expense-title">${escHtml(exp.title)}</div>
-
-          <div class="expense-meta">
-            <span class="cat-badge" style="background:${color}">
-              ${exp.category}
-            </span>
-            &nbsp; ${date}
-          </div>
-
-          ${exp.note ? `<div class="expense-note">📝 ${escHtml(exp.note)}</div>` : ""}
-        </div>
-
-        <div class="expense-amount">₹${fmt(exp.amount)}</div>
-
-        <div class="expense-actions">
-          <button class="btn btn-ghost btn-sm" onclick="openEditModal(${exp.id})">✏</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteExpense(${exp.id})">🗑</button>
+        <div class="expense-meta">
+          ${exp.category}
         </div>
       </div>
-    `;
-  }).join("");
+
+      <div class="expense-amount">
+        ₹${fmt(exp.amount)}
+      </div>
+
+      <div class="expense-actions">
+
+        <button class="btn btn-ghost btn-sm"
+          onclick="openEditModal(${exp.id})">
+          ✏
+        </button>
+
+        <button class="btn btn-danger btn-sm"
+          onclick="deleteExpense(${exp.id})">
+          🗑
+        </button>
+
+      </div>
+
+    </div>
+
+  `).join("");
 }
 
+/* ───────────────── PAGINATION ───────────────── */
+
 function renderPagination(p) {
+
   const el = document.getElementById("pagination");
 
-  if (!p || p.totalPages <= 1) {
+  if (p.totalPages <= 1) {
     el.innerHTML = "";
     return;
   }
 
   let html = `<div class="pagination">`;
 
-  html += `<button class="page-btn" onclick="loadExpenses(${p.page - 1})" ${p.page <= 1 ? "disabled" : ""}>‹</button>`;
-
   for (let i = 1; i <= p.totalPages; i++) {
-    html += `<button class="page-btn ${i === p.page ? "active" : ""}" onclick="loadExpenses(${i})">${i}</button>`;
+    html += `
+      <button
+        class="page-btn ${i === p.page ? "active" : ""}"
+        onclick="loadExpenses(${i})">
+        ${i}
+      </button>
+    `;
   }
 
-  html += `<button class="page-btn" onclick="loadExpenses(${p.page + 1})" ${p.page >= p.totalPages ? "disabled" : ""}>›</button>`;
   html += `</div>`;
 
   el.innerHTML = html;
 }
 
-/* ───────────────── DATE FILTER ───────────────── */
-async function filterByDate() {
-  const start = document.getElementById("filter-start").value;
-  const end = document.getElementById("filter-end").value;
-
-  if (!start || !end) {
-    toast("Pick dates", "error");
-    return;
-  }
-
-  isFiltered = true;
-
-  const el = document.getElementById("filter-results");
-  el.innerHTML = `<div class="spinner"></div>`;
-
-  try {
-    const res = await fetch(`${BASE_URL}/expenses-by-date?start=${start}&end=${end}`);
-    const data = await res.json();
-
-    if (!data.length) {
-      el.innerHTML = `<div class="empty"><p>No expenses</p></div>`;
-      return;
-    }
-
-    const total = data.reduce((a, b) => a + Number(b.amount), 0);
-
-    el.innerHTML = `
-      <div style="margin-bottom:10px;font-family:var(--mono);color:var(--accent)">
-        Total: ₹${fmt(total)}
-      </div>
-
-      ${data.map(exp => `
-        <div style="padding:8px 0;border-bottom:1px solid var(--border)">
-          ${escHtml(exp.title)} — ₹${fmt(exp.amount)}
-        </div>
-      `).join("")}
-    `;
-  } catch {
-    el.innerHTML = `<p style="color:red">Failed</p>`;
-  }
-}
-
-function clearFilter() {
-  isFiltered = false;
-  document.getElementById("filter-start").value = "";
-  document.getElementById("filter-end").value = "";
-  document.getElementById("filter-results").innerHTML = "";
-  loadExpenses(1);
-}
-
-/* ───────────────── CHART ───────────────── */
-async function loadChart(type) {
-  currentChartType = type;
-
-  let url = `${BASE_URL}/chart-data?range=30`;
-
-  if (type === "monthly") {
-    url = `${BASE_URL}/chart-data/monthly`;
-  }
-
-  if (type === "category") {
-    url = `${BASE_URL}/chart-data/category`;
-  }
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-
-    if (mainChart) mainChart.destroy();
-
-    const ctx = document.getElementById("mainChart");
-
-    if (type === "category") {
-      mainChart = new Chart(ctx, {
-        type: "doughnut",
-        data: {
-          labels: data.map(x => x.category),
-          datasets: [{
-            data: data.map(x => Number(x.total)),
-            backgroundColor: data.map(x => getCatColor(x.category))
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false
-        }
-      });
-
-      return;
-    }
-
-    const labels = data.map(x => x.date || x.month);
-    const values = data.map(x => Number(x.total));
-
-    mainChart = new Chart(ctx, {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [{
-          data: values,
-          borderWidth: 2,
-          borderColor: "#e8ff4d",
-          backgroundColor: "rgba(232,255,77,.18)"
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false }
-        }
-      }
-    });
-
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-function switchChart(type, btn) {
-  document.querySelectorAll(".chart-tab").forEach(x => x.classList.remove("active"));
-  btn.classList.add("active");
-  loadChart(type);
-}
-
-/* ───────────────── EXPORT ───────────────── */
-function exportCSV() {
-  window.open(`${BASE_URL}/export/csv`, "_blank");
-}
-
-/* ───────────────── SEARCH ───────────────── */
-function debounceSearch() {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => loadExpenses(1), 400);
-}
-
-/* ───────────────── BULK ───────────────── */
-function toggleSelect(id, cb) {
-  cb.checked ? selectedIds.add(id) : selectedIds.delete(id);
-  updateBulkBar();
-}
-
-function updateBulkBar() {
-  document.getElementById("selected-count").textContent = selectedIds.size;
-  document.getElementById("bulk-bar")
-    .classList.toggle("visible", selectedIds.size > 0);
-}
-
-function clearSelection() {
-  selectedIds.clear();
-  document.querySelectorAll("#expense-list input[type=checkbox]")
-    .forEach(cb => cb.checked = false);
-  updateBulkBar();
-}
-
-async function bulkDelete() {
-  if (!selectedIds.size) return;
-
-  if (!confirm("Delete selected?")) return;
-
-  await fetch(`${BASE_URL}/delete-expenses`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      ids: [...selectedIds]
-    })
-  });
-
-  toast("Deleted");
-  await refreshAll();
-}
-
-/* ───────────────── CRUD ───────────────── */
-function openAddModal() {
-  editingId = null;
-  document.getElementById("modal-title").textContent = "Add Expense";
-  document.getElementById("modal-save-btn").textContent = "Add";
-  document.getElementById("m-title").value = "";
-  document.getElementById("m-amount").value = "";
-  document.getElementById("m-note").value = "";
-  document.getElementById("m-category").value = categories[0]?.name || "General";
-  openModal("expense-modal");
-}
-
-async function openEditModal(id) {
-  const res = await fetch(`${BASE_URL}/expenses/${id}`);
-  const exp = await res.json();
-
-  editingId = id;
-
-  document.getElementById("modal-title").textContent = "Edit Expense";
-  document.getElementById("modal-save-btn").textContent = "Update";
-  document.getElementById("m-title").value = exp.title;
-  document.getElementById("m-amount").value = exp.amount;
-  document.getElementById("m-category").value = exp.category;
-  document.getElementById("m-note").value = exp.note || "";
-
-  openModal("expense-modal");
-}
+/* ───────────────── SAVE ───────────────── */
 
 async function saveExpense() {
-  const title = document.getElementById("m-title").value.trim();
-  const amount = document.getElementById("m-amount").value;
-  const category = document.getElementById("m-category").value;
-  const note = document.getElementById("m-note").value.trim();
 
-  if (!title || !amount) {
-    toast("Title + amount required", "error");
-    return;
-  }
+  const title =
+    document.getElementById("m-title").value.trim();
 
-  const body = JSON.stringify({
-    title,
-    amount: Number(amount),
-    category,
-    note
-  });
+  const amount =
+    document.getElementById("m-amount").value;
+
+  const category =
+    document.getElementById("m-category").value;
+
+  const note =
+    document.getElementById("m-note").value.trim();
 
   const url = editingId
-    ? `${BASE_URL}/update-expense/${editingId}`
-    : `${BASE_URL}/add-expense`;
+    ? `/update-expense/${editingId}`
+    : `/add-expense`;
 
   const method = editingId ? "PUT" : "POST";
 
-  const res = await fetch(url, {
+  const res = await api(url, {
     method,
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body
+    body: JSON.stringify({
+      title,
+      amount,
+      category,
+      note
+    })
   });
 
   const d = await res.json();
@@ -991,23 +1002,49 @@ async function saveExpense() {
   }
 
   closeModal("expense-modal");
-  toast(editingId ? "Updated ✅" : "Added ✅");
+
+  toast(editingId ? "Updated" : "Added");
 
   await refreshAll();
 }
 
+/* ───────────────── DELETE ───────────────── */
+
 async function deleteExpense(id) {
+
   if (!confirm("Delete expense?")) return;
 
-  await fetch(`${BASE_URL}/delete-expense/${id}`, {
+  await api(`/delete-expense/${id}`, {
     method: "DELETE"
   });
 
   toast("Deleted");
+
   await refreshAll();
 }
 
+/* ───────────────── SINGLE ───────────────── */
+
+async function openEditModal(id) {
+
+  const res = await api(`/expenses/${id}`);
+
+  const exp = await res.json();
+
+  editingId = id;
+
+  document.getElementById("m-title").value = exp.title;
+  document.getElementById("m-amount").value = exp.amount;
+  document.getElementById("m-category").value = exp.category;
+  document.getElementById("m-note").value = exp.note || "";
+
+  openModal("expense-modal");
+}
+
+/* ───────────────── REFRESH ───────────────── */
+
 async function refreshAll() {
+
   await Promise.all([
     loadSummary(),
     loadExpenses(currentPage),
@@ -1015,7 +1052,8 @@ async function refreshAll() {
   ]);
 }
 
-/* ───────────────── MODAL ───────────────── */
+/* ───────────────── MODALS ───────────────── */
+
 function openModal(id) {
   document.getElementById(id).classList.add("open");
 }
@@ -1024,26 +1062,105 @@ function closeModal(id) {
   document.getElementById(id).classList.remove("open");
 }
 
-function openCatModal() {
-  openModal("cat-modal");
+function openAddModal() {
+
+  editingId = null;
+
+  document.getElementById("m-title").value = "";
+  document.getElementById("m-amount").value = "";
+  document.getElementById("m-note").value = "";
+
+  openModal("expense-modal");
 }
 
-/* ───────────────── EVENTS ───────────────── */
-document.querySelectorAll(".modal-overlay").forEach(overlay => {
-  overlay.addEventListener("click", e => {
-    if (e.target === overlay) overlay.classList.remove("open");
-  });
-});
+/* ───────────────── CHARTS ───────────────── */
 
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape") {
-    document.querySelectorAll(".modal-overlay.open")
-      .forEach(x => x.classList.remove("open"));
+async function loadChart(type) {
+
+  currentChartType = type;
+
+  let endpoint = "/chart-data";
+
+  if (type === "monthly") {
+    endpoint = "/chart-data/monthly";
   }
-});
+
+  if (type === "category") {
+    endpoint = "/chart-data/category";
+  }
+
+  const res = await api(endpoint);
+
+  const data = await res.json();
+
+  if (mainChart) {
+    mainChart.destroy();
+  }
+
+  const ctx =
+    document.getElementById("mainChart");
+
+  if (type === "category") {
+
+    mainChart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: data.map(x => x.category),
+        datasets: [{
+          data: data.map(x => Number(x.total))
+        }]
+      }
+    });
+
+    return;
+  }
+
+  mainChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: data.map(x => x.date || x.month),
+      datasets: [{
+        data: data.map(x => Number(x.total))
+      }]
+    }
+  });
+}
+
+/* ───────────────── SWITCH CHART ───────────────── */
+
+function switchChart(type, btn) {
+
+  document.querySelectorAll(".chart-tab")
+    .forEach(x => x.classList.remove("active"));
+
+  btn.classList.add("active");
+
+  loadChart(type);
+}
+
+/* ───────────────── EXPORT ───────────────── */
+
+function exportCSV() {
+  window.open(`${BASE_URL}/export/csv`);
+}
+
+/* ───────────────── SEARCH ───────────────── */
+
+function debounceSearch() {
+
+  clearTimeout(searchTimer);
+
+  searchTimer = setTimeout(() => {
+    loadExpenses(1);
+  }, 400);
+}
 
 /* ───────────────── START ───────────────── */
-init();
+
+if (token) {
+  init();
+}
+
 </script>
 
 </body>
