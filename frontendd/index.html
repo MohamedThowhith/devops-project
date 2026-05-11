@@ -740,83 +740,189 @@ async function loadSummary() {
 /* ───────────────── CATEGORIES ───────────────── */
 
 async function loadCategories() {
-  var res  = await api("/categories");
-  categories = await res.json();
-  populateCategorySelects();
-  renderCatList();
+
+  try {
+
+    const res = await api("/categories");
+
+    if (!res.ok) {
+      toast("Failed to load categories", "error");
+      return;
+    }
+
+    categories = await res.json();
+
+    console.log("Loaded categories:", categories);
+
+    populateCategorySelects();
+
+    renderCatList();
+
+  } catch (err) {
+
+    console.error("Category Load Error:", err);
+
+    toast("Could not load categories", "error");
+  }
 }
 
 function getCatColor(name) {
-  if (!categories || !categories.length) {
-    return "#6366f1";
-  }
 
-  var cat = categories.find(function(c) {
-    return c.name === name;
-  });
+  const cat = categories.find(c => c.name === name);
 
   return cat ? cat.color : "#6366f1";
 }
 
 function populateCategorySelects() {
-  ["m-category", "cat-filter"].forEach(function(id) {
-    var sel = document.getElementById(id);
-    if (!sel) return;
-    var oldValue = sel.value;
-    var isFilter = id === "cat-filter";
-    sel.innerHTML = isFilter ? '<option value="">All Categories</option>' : "";
-    categories.forEach(function(c) {
-      sel.innerHTML += '<option value="' + escHtml(c.name) + '">' + escHtml(c.name) + '</option>';
+
+  const modalSelect = document.getElementById("m-category");
+
+  const filterSelect = document.getElementById("cat-filter");
+
+  if (modalSelect) {
+
+    modalSelect.innerHTML = "";
+
+    categories.forEach(cat => {
+
+      const option = document.createElement("option");
+
+      option.value = cat.name;
+
+      option.textContent = cat.name;
+
+      modalSelect.appendChild(option);
     });
-    sel.value = oldValue;
-  });
+  }
+
+  if (filterSelect) {
+
+    filterSelect.innerHTML =
+      '<option value="">All Categories</option>';
+
+    categories.forEach(cat => {
+
+      const option = document.createElement("option");
+
+      option.value = cat.name;
+
+      option.textContent = cat.name;
+
+      filterSelect.appendChild(option);
+    });
+  }
 }
 
 function renderCatList() {
-  var el = document.getElementById("cat-list");
+
+  const el = document.getElementById("cat-list");
+
   if (!el) return;
+
   if (!categories.length) {
-    el.innerHTML = '<p style="color:var(--muted);font-size:.85rem;">No categories yet.</p>';
+
+    el.innerHTML =
+      '<p style="color:var(--muted);font-size:.85rem;">No categories yet.</p>';
+
     return;
   }
-  el.innerHTML = categories.map(function(c) {
-    return '<span class="cat-chip" style="background:' + c.color + '">' +
-      escHtml(c.name) +
-      '<button class="del-cat" onclick="deleteCategory(' + c.id + ')" title="Delete">✕</button>' +
-      '</span>';
-  }).join("");
+
+  el.innerHTML = categories.map(c => `
+    <span class="cat-chip" style="background:${c.color}">
+      ${escHtml(c.name)}
+      <button
+        class="del-cat"
+        onclick="deleteCategory(${c.id})"
+        title="Delete"
+      >
+        ✕
+      </button>
+    </span>
+  `).join("");
 }
 
 function openCatModal() {
+
   renderCatList();
+
   openModal("cat-modal");
 }
 
 async function addCategory() {
-  var name  = document.getElementById("new-cat-name").value.trim();
-  var color = document.getElementById("new-cat-color").value;
 
-  if (!name) { toast("Please enter a category name.", "error"); return; }
+  const name =
+    document.getElementById("new-cat-name").value.trim();
 
-  var res = await api("/categories", {
-    method: "POST",
-    body: JSON.stringify({ name: name, color: color })
-  });
-  var d = await res.json();
+  const color =
+    document.getElementById("new-cat-color").value;
 
-  if (!res.ok) { toast(d.error || "Failed to add category", "error"); return; }
+  if (!name) {
 
-  document.getElementById("new-cat-name").value = "";
-  await loadCategories();
-  toast("Category added ✓");
+    toast("Please enter category name", "error");
+
+    return;
+  }
+
+  try {
+
+    const res = await api("/categories", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        color
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+
+      toast(data.error || "Failed", "error");
+
+      return;
+    }
+
+    document.getElementById("new-cat-name").value = "";
+
+    await loadCategories();
+
+    toast("Category added");
+
+  } catch (err) {
+
+    console.error(err);
+
+    toast("Error adding category", "error");
+  }
 }
 
 async function deleteCategory(id) {
+
   if (!confirm("Delete this category?")) return;
-  var res = await api("/categories/" + id, { method: "DELETE" });
-  if (!res.ok) { toast("Failed to delete category", "error"); return; }
-  await loadCategories();
-  toast("Category deleted");
+
+  try {
+
+    const res = await api("/categories/" + id, {
+      method: "DELETE"
+    });
+
+    if (!res.ok) {
+
+      toast("Delete failed", "error");
+
+      return;
+    }
+
+    await loadCategories();
+
+    toast("Category deleted");
+
+  } catch (err) {
+
+    console.error(err);
+
+    toast("Delete error", "error");
+  }
 }
 
 /* ───────────────── LOAD EXPENSES ───────────────── */
