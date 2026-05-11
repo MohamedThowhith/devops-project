@@ -441,7 +441,9 @@
     </div>
     <div class="form-group">
       <label>Category</label>
-      <select id="m-category"></select>
+      <select id="m-category">
+  <option value="General">General</option>
+</select>
     </div>
     <div class="form-group">
       <label>Note</label>
@@ -745,7 +747,14 @@ async function loadCategories() {
 }
 
 function getCatColor(name) {
-  var cat = categories.find(function(c) { return c.name === name; });
+  if (!categories || !categories.length) {
+    return "#6366f1";
+  }
+
+  var cat = categories.find(function(c) {
+    return c.name === name;
+  });
+
   return cat ? cat.color : "#6366f1";
 }
 
@@ -1103,7 +1112,7 @@ async function loadChart(type) {
 
     if (mainChart) { mainChart.destroy(); mainChart = null; }
 
-    var ctx = document.getElementById("mainChart");
+    var ctx = document.getElementById("mainChart").getContext("2d");
     if (!ctx) return;
 
     var baseOptions = {
@@ -1237,7 +1246,9 @@ function debounceSearch() {
 
 /* ───────────────── KICK OFF ───────────────── */
 
-if (token) init();
+if (token && BASE_URL) {
+  init();
+}
 </script>
 </body>
 </html>
