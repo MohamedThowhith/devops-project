@@ -591,6 +591,56 @@ app.get("/categories", authenticateToken, async (req, res) => {
   }
 });
 
+/* ───────────────── SEED DEFAULT CATEGORIES ───────────────── */
+
+app.post("/seed-categories", authenticateToken, async (req, res) => {
+
+  try {
+
+    const existing = await pool.query(
+      `
+      SELECT *
+      FROM categories
+      WHERE user_id=$1
+      `,
+      [req.user.id]
+    );
+
+    if (existing.rows.length > 0) {
+
+      return res.json({
+        message: "Categories already exist"
+      });
+    }
+
+    await pool.query(
+      `
+      INSERT INTO categories(user_id,name,color)
+      VALUES
+      ($1,'Food','#ff6b6b'),
+      ($1,'Travel','#4ecdc4'),
+      ($1,'Shopping','#ffe66d'),
+      ($1,'Bills','#5f27cd'),
+      ($1,'Entertainment','#ff9f43'),
+      ($1,'General','#6366f1')
+      `,
+      [req.user.id]
+    );
+
+    res.json({
+      success: true
+    });
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
 /* ───────────────── ADD CATEGORY ───────────────── */
 
 app.post("/categories", authenticateToken, async (req, res) => {
