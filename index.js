@@ -58,7 +58,7 @@ function authenticateToken(req, res, next) {
 
 async function initDB() {
 
-  /* USERS */
+  // USERS
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -68,21 +68,21 @@ async function initDB() {
     )
   `);
 
-  /* CATEGORIES */
+  // CATEGORIES
   await pool.query(`
     CREATE TABLE IF NOT EXISTS categories (
       id SERIAL PRIMARY KEY,
-      user_id INTEGER,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       color TEXT DEFAULT '#6366f1'
     )
   `);
 
-  /* EXPENSES */
+  // EXPENSES
   await pool.query(`
     CREATE TABLE IF NOT EXISTS expenses (
       id SERIAL PRIMARY KEY,
-      user_id INTEGER,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
       title TEXT NOT NULL,
       amount NUMERIC NOT NULL,
       category TEXT DEFAULT 'General',
@@ -91,16 +91,15 @@ async function initDB() {
     )
   `);
 
-  /* SAFE MIGRATIONS */
-
+  // AUTO FIX OLD DATABASES
   await pool.query(`
     ALTER TABLE expenses
     ADD COLUMN IF NOT EXISTS user_id INTEGER
   `);
 
   await pool.query(`
-    ALTER TABLE expenses
-    ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General'
+    ALTER TABLE categories
+    ADD COLUMN IF NOT EXISTS user_id INTEGER
   `);
 
   await pool.query(`
@@ -110,12 +109,7 @@ async function initDB() {
 
   await pool.query(`
     ALTER TABLE expenses
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-  `);
-
-  await pool.query(`
-    ALTER TABLE categories
-    ADD COLUMN IF NOT EXISTS user_id INTEGER
+    ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General'
   `);
 
   console.log("✅ Database Ready");
