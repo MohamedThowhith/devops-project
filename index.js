@@ -597,31 +597,40 @@ app.post("/categories", authenticateToken, async (req, res) => {
 
   try {
 
-    const {
-      name,
-      color,
-    } = req.body;
+    const { name, color } = req.body;
 
     if (!name) {
       return res.status(400).json({
-        error: "Category name required",
+        error: "Category name required"
+      });
+    }
+
+    const exists = await pool.query(
+      `
+      SELECT *
+      FROM categories
+      WHERE user_id=$1
+      AND LOWER(name)=LOWER($2)
+      `,
+      [req.user.id, name]
+    );
+
+    if (exists.rows.length) {
+      return res.status(400).json({
+        error: "Category already exists"
       });
     }
 
     const r = await pool.query(
       `
-      INSERT INTO categories(
-        user_id,
-        name,
-        color
-      )
+      INSERT INTO categories(user_id,name,color)
       VALUES($1,$2,$3)
       RETURNING *
       `,
       [
         req.user.id,
         name,
-        color || "#6366f1",
+        color || "#6366f1"
       ]
     );
 
@@ -629,10 +638,10 @@ app.post("/categories", authenticateToken, async (req, res) => {
 
   } catch (err) {
 
-    console.error("ADD CATEGORY ERROR:", err);
+    console.error(err);
 
     res.status(500).json({
-      error: err.message,
+      error: err.message
     });
   }
 });
@@ -651,20 +660,20 @@ app.delete("/categories/:id", authenticateToken, async (req, res) => {
       `,
       [
         req.params.id,
-        req.user.id,
+        req.user.id
       ]
     );
 
     res.json({
-      message: "Deleted",
+      success: true
     });
 
   } catch (err) {
 
-    console.error("DELETE CATEGORY ERROR:", err);
+    console.error(err);
 
     res.status(500).json({
-      error: err.message,
+      error: err.message
     });
   }
 });
