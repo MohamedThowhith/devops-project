@@ -681,14 +681,33 @@ function changeBackendUrl() {
 /* ───────────────── INIT ───────────────── */
 
 async function init() {
+
   if (!token) return;
+
   try {
-    await Promise.all([loadCategories(), loadSummary()]);
-    await loadExpenses(1);
-    await loadChart("daily");
+
+    // Seed categories first
+    await api("/seed-categories", {
+      method: "POST"
+    });
+
+    // THEN load categories
+    await loadCategories();
+
+    await Promise.all([
+      loadSummary(),
+      loadExpenses(1),
+      loadChart("daily")
+    ]);
+
   } catch (err) {
+
     console.error("Init error:", err);
-    toast("Failed to load data. Check your backend URL and server status.", "error");
+
+    toast(
+      "Failed to load data",
+      "error"
+    );
   }
 }
 
