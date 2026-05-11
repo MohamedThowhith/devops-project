@@ -794,42 +794,50 @@ function getCatColor(name) {
 
 function populateCategorySelects() {
 
-  const modalSelect = document.getElementById("m-category");
+  const modalSelect =
+    document.getElementById("m-category");
 
-  const filterSelect = document.getElementById("cat-filter");
+  const filterSelect =
+    document.getElementById("cat-filter");
 
+  // CLEAR EXISTING OPTIONS
   if (modalSelect) {
-
     modalSelect.innerHTML = "";
-
-    categories.forEach(cat => {
-
-      const option = document.createElement("option");
-
-      option.value = cat.name;
-
-      option.textContent = cat.name;
-
-      modalSelect.appendChild(option);
-    });
   }
 
   if (filterSelect) {
-
     filterSelect.innerHTML =
-      '<option value="">All Categories</option>';
-
-    categories.forEach(cat => {
-
-      const option = document.createElement("option");
-
-      option.value = cat.name;
-
-      option.textContent = cat.name;
-
-      filterSelect.appendChild(option);
-    });
+      `<option value="">All Categories</option>`;
   }
+
+  categories.forEach(cat => {
+
+    // Modal dropdown
+    if (modalSelect) {
+
+      const opt = document.createElement("option");
+
+      opt.value = cat.name;
+
+      opt.textContent = cat.name;
+
+      modalSelect.appendChild(opt);
+    }
+
+    // Filter dropdown
+    if (filterSelect) {
+
+      const opt2 = document.createElement("option");
+
+      opt2.value = cat.name;
+
+      opt2.textContent = cat.name;
+
+      filterSelect.appendChild(opt2);
+    }
+  });
+
+  console.log("Categories inserted:", categories);
 }
 
 function renderCatList() {
@@ -1166,14 +1174,45 @@ async function openEditModal(id) {
 
 /* ───────────────── ADD MODAL ───────────────── */
 
-function openAddModal() {
+async function openAddModal() {
+
   editingId = null;
-  document.getElementById("modal-title").textContent = "Add Expense";
-  document.getElementById("m-title").value           = "";
-  document.getElementById("m-amount").value          = "";
-  document.getElementById("m-note").value            = "";
-  var catSel = document.getElementById("m-category");
-  if (catSel && catSel.options.length) catSel.selectedIndex = 0;
+
+  document.getElementById("modal-title").textContent =
+    "Add Expense";
+
+  document.getElementById("m-title").value = "";
+
+  document.getElementById("m-amount").value = "";
+
+  document.getElementById("m-note").value = "";
+
+  // FORCE LOAD CATEGORIES AGAIN
+  await loadCategories();
+
+  const catSel = document.getElementById("m-category");
+
+  // fallback categories
+  if (!categories.length) {
+
+    categories = [
+      { name: "Food", color: "#ff6b6b" },
+      { name: "Travel", color: "#4ecdc4" },
+      { name: "Shopping", color: "#ffe66d" },
+      { name: "Bills", color: "#5f27cd" },
+      { name: "Entertainment", color: "#ff9f43" },
+      { name: "General", color: "#6366f1" }
+    ];
+
+    populateCategorySelects();
+  }
+
+  if (catSel.options.length > 0) {
+    catSel.selectedIndex = 0;
+  }
+
+  console.log("Dropdown options:", catSel.innerHTML);
+
   openModal("expense-modal");
 }
 
