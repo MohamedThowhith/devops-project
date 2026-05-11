@@ -338,7 +338,7 @@
 <div id="config-banner">
   <span>⚙️ Enter your Render backend URL:</span>
   <input id="backend-url-input" type="url" placeholder="https://your-service-name.onrender.com" />
-  <button class="btn btn-primary btn-sm" onclick="saveBackendUrl()">Save & Reload</button>
+  <button class="btn btn-primary btn-sm" onclick="saveBackendUrl()">Save &amp; Reload</button>
 </div>
 
 <!-- Header -->
@@ -477,18 +477,9 @@
 <div id="toast-container"></div>
 
 <script>
-
 /* ───────────────────────────────────────────────────────
    BASE URL RESOLUTION
-   Priority order:
-     1. localStorage "backendUrl"  (set via the config banner below)
-     2. window.BACKEND_URL         (inject via a <script> tag in your
-                                    Render Static Site environment, e.g.
-                                    <script>window.BACKEND_URL="https://..."</script>)
-     3. Auto-detect: if this page is served FROM a Render Static Site
-        at e.g. https://my-frontend.onrender.com, you can point the
-        backend URL to your backend service manually in localStorage.
-   ─────────────────────────────────────────────────────── */
+─────────────────────────────────────────────────────── */
 
 function getBaseUrl() {
   return (
@@ -498,7 +489,7 @@ function getBaseUrl() {
   );
 }
 
-let BASE_URL = getBaseUrl();
+var BASE_URL = getBaseUrl();
 
 // Show the config banner if no backend URL is configured
 if (!BASE_URL) {
@@ -506,7 +497,7 @@ if (!BASE_URL) {
 }
 
 function saveBackendUrl() {
-  const val = document.getElementById("backend-url-input").value.trim().replace(/\/$/, "");
+  var val = document.getElementById("backend-url-input").value.trim().replace(/\/$/, "");
   if (!val || !val.startsWith("http")) {
     alert("Please enter a valid URL starting with https://");
     return;
@@ -517,26 +508,25 @@ function saveBackendUrl() {
 
 /* ───────────────── STATE ───────────────── */
 
-let token        = localStorage.getItem("token");
-let currentUser  = localStorage.getItem("user");
-let mainChart    = null;
-let currentPage  = 1;
-let currentChartType = "daily";
-let editingId    = null;
-let categories   = [];
-let selectedIds  = new Set();
-let searchTimer  = null;
+var token        = localStorage.getItem("token");
+var currentUser  = localStorage.getItem("user");
+var mainChart    = null;
+var currentPage  = 1;
+var currentChartType = "daily";
+var editingId    = null;
+var categories   = [];
+var selectedIds  = new Set();
+var searchTimer  = null;
 
 /* ───────────────── AUTH SCREEN ───────────────── */
 
 if (!token) {
   document.body.innerHTML = `
-    <!-- keep config banner accessible -->
     <div id="config-banner" style="background:#2a1a00;border:1px solid #ff9f43;border-radius:10px;padding:14px 18px;margin:16px 24px;font-size:.85rem;color:#ff9f43;display:${BASE_URL ? 'none' : 'flex'};align-items:center;gap:12px;">
       <span>⚙️ Enter your Render backend URL:</span>
       <input id="backend-url-input" type="url" placeholder="https://your-service-name.onrender.com"
         style="flex:1;background:#1a1000;border:1px solid #ff9f43;color:#ff9f43;font-family:monospace;font-size:.82rem;padding:8px 12px;border-radius:8px;outline:none;" />
-      <button onclick="saveBackendUrl()" style="padding:8px 14px;background:#e8ff4d;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-family:inherit;">Save & Reload</button>
+      <button onclick="saveBackendUrl()" style="padding:8px 14px;background:#e8ff4d;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-family:inherit;">Save &amp; Reload</button>
     </div>
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0f14;color:white;font-family:'Syne',sans-serif;">
       <div style="width:100%;max-width:400px;background:#161920;padding:30px;border-radius:16px;border:1px solid #2a2f3a;">
@@ -568,29 +558,30 @@ if (!token) {
     </div>
   `;
 
-  let loginMode = false;
+  var loginMode = false;
   window.toggleAuthMode = function() {
     loginMode = !loginMode;
-    const nameField = document.getElementById("auth-fields");
+    var nameField = document.getElementById("auth-fields");
     if (nameField) nameField.style.display = loginMode ? "none" : "block";
   };
 }
 
 /* ───────────────── API HELPER ───────────────── */
 
-async function api(url, options = {}) {
+async function api(url, options) {
+  options = options || {};
   if (!BASE_URL) {
     toast("Backend URL not configured. Please set it in the banner above.", "error");
     throw new Error("BASE_URL not set");
   }
 
-  options.headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {})
-  };
-  if (token) options.headers.Authorization = `Bearer ${token}`;
+  options.headers = Object.assign(
+    { "Content-Type": "application/json" },
+    options.headers || {}
+  );
+  if (token) options.headers.Authorization = "Bearer " + token;
 
-  const res = await fetch(BASE_URL + url, options);
+  var res = await fetch(BASE_URL + url, options);
 
   if (res.status === 401) {
     logout();
@@ -602,58 +593,58 @@ async function api(url, options = {}) {
 /* ───────────────── AUTH FUNCTIONS ───────────────── */
 
 async function register() {
-  const nameEl     = document.getElementById("auth-name");
-  const name       = nameEl ? nameEl.value.trim() : "";
-  const email      = document.getElementById("auth-email").value.trim();
-  const password   = document.getElementById("auth-password").value.trim();
-  const msgEl      = document.getElementById("auth-msg");
+  var nameEl   = document.getElementById("auth-name");
+  var name     = nameEl ? nameEl.value.trim() : "";
+  var email    = document.getElementById("auth-email").value.trim();
+  var password = document.getElementById("auth-password").value.trim();
+  var msgEl    = document.getElementById("auth-msg");
 
   if (!BASE_URL) { msgEl.textContent = "Please set your backend URL first (banner above)."; return; }
-  if (!name) { msgEl.textContent = "Please enter your name."; return; }
-  if (!email) { msgEl.textContent = "Please enter an email."; return; }
+  if (!name)     { msgEl.textContent = "Please enter your name."; return; }
+  if (!email)    { msgEl.textContent = "Please enter an email."; return; }
   if (!password) { msgEl.textContent = "Please enter a password."; return; }
 
   try {
-    const res = await fetch(`${BASE_URL}/register`, {
+    var res = await fetch(BASE_URL + "/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password })
+      body: JSON.stringify({ name: name, email: email, password: password })
     });
-    const data = await res.json();
+    var data = await res.json();
 
     if (!res.ok) { msgEl.textContent = data.error || "Registration failed."; return; }
 
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
     location.reload();
-  } catch {
+  } catch (e) {
     document.getElementById("auth-msg").textContent = "Network error. Check your backend URL and server status.";
   }
 }
 
 async function login() {
-  const email    = document.getElementById("auth-email").value.trim();
-  const password = document.getElementById("auth-password").value.trim();
-  const msgEl    = document.getElementById("auth-msg");
+  var email    = document.getElementById("auth-email").value.trim();
+  var password = document.getElementById("auth-password").value.trim();
+  var msgEl    = document.getElementById("auth-msg");
 
   if (!BASE_URL) { msgEl.textContent = "Please set your backend URL first (banner above)."; return; }
   if (!email)    { msgEl.textContent = "Please enter an email."; return; }
   if (!password) { msgEl.textContent = "Please enter a password."; return; }
 
   try {
-    const res = await fetch(`${BASE_URL}/login`, {
+    var res = await fetch(BASE_URL + "/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ email: email, password: password })
     });
-    const data = await res.json();
+    var data = await res.json();
 
     if (!res.ok) { msgEl.textContent = data.error || "Login failed."; return; }
 
     localStorage.setItem("token", data.token);
     localStorage.setItem("user", JSON.stringify(data.user));
     location.reload();
-  } catch {
+  } catch (e) {
     document.getElementById("auth-msg").textContent = "Network error. Check your backend URL and server status.";
   }
 }
@@ -667,17 +658,16 @@ function logout() {
 /* ───────────────── HEADER USER ───────────────── */
 
 if (token) {
-  const user   = JSON.parse(currentUser || "{}");
-  const header = document.querySelector(".header-actions");
+  var user   = JSON.parse(currentUser || "{}");
+  var header = document.querySelector(".header-actions");
   if (header) {
-    header.innerHTML = `
-      <span style="color:var(--accent);font-size:.9rem;">👋 ${escHtml(user.name || "User")}</span>
-      <button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
-      <button class="btn btn-ghost btn-sm" onclick="openCatModal()">🏷 Categories</button>
-      <button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Expense</button>
-      <button class="btn btn-ghost btn-sm" onclick="changeBackendUrl()" title="Change backend URL">⚙️</button>
-      <button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>
-    `;
+    header.innerHTML =
+      '<span style="color:var(--accent);font-size:.9rem;">👋 ' + escHtml(user.name || "User") + '</span>' +
+      '<button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ Export CSV</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="openCatModal()">🏷 Categories</button>' +
+      '<button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Expense</button>' +
+      '<button class="btn btn-ghost btn-sm" onclick="changeBackendUrl()" title="Change backend URL">⚙️</button>' +
+      '<button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>';
   }
 }
 
@@ -702,12 +692,17 @@ async function init() {
 
 /* ───────────────── TOAST ───────────────── */
 
-function toast(msg, type = "success") {
-  const el = document.createElement("div");
+function toast(msg, type) {
+  type = type || "success";
+  var el = document.createElement("div");
   el.className = "toast" + (type === "error" ? " error" : "");
   el.textContent = msg;
-  document.getElementById("toast-container").appendChild(el);
-  setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 300); }, 3000);
+  var container = document.getElementById("toast-container");
+  if (container) container.appendChild(el);
+  setTimeout(function() {
+    el.style.opacity = "0";
+    setTimeout(function() { el.remove(); }, 300);
+  }, 3000);
 }
 
 /* ───────────────── FORMAT HELPERS ───────────────── */
@@ -731,8 +726,8 @@ function fmtDate(iso) {
 /* ───────────────── SUMMARY ───────────────── */
 
 async function loadSummary() {
-  const res = await api("/summary");
-  const d   = await res.json();
+  var res = await api("/summary");
+  var d   = await res.json();
   document.getElementById("stat-total").textContent = "₹" + fmt(d.total);
   document.getElementById("stat-count").textContent = d.count;
   document.getElementById("stat-avg").textContent   = "₹" + fmt(d.average);
@@ -743,44 +738,44 @@ async function loadSummary() {
 /* ───────────────── CATEGORIES ───────────────── */
 
 async function loadCategories() {
-  const res  = await api("/categories");
+  var res  = await api("/categories");
   categories = await res.json();
   populateCategorySelects();
   renderCatList();
 }
 
 function getCatColor(name) {
-  const cat = categories.find(c => c.name === name);
+  var cat = categories.find(function(c) { return c.name === name; });
   return cat ? cat.color : "#6366f1";
 }
 
 function populateCategorySelects() {
-  ["m-category", "cat-filter"].forEach(id => {
-    const sel = document.getElementById(id);
+  ["m-category", "cat-filter"].forEach(function(id) {
+    var sel = document.getElementById(id);
     if (!sel) return;
-    const oldValue = sel.value;
-    const isFilter = id === "cat-filter";
-    sel.innerHTML  = isFilter ? `<option value="">All Categories</option>` : "";
-    categories.forEach(c => {
-      sel.innerHTML += `<option value="${escHtml(c.name)}">${escHtml(c.name)}</option>`;
+    var oldValue = sel.value;
+    var isFilter = id === "cat-filter";
+    sel.innerHTML = isFilter ? '<option value="">All Categories</option>' : "";
+    categories.forEach(function(c) {
+      sel.innerHTML += '<option value="' + escHtml(c.name) + '">' + escHtml(c.name) + '</option>';
     });
     sel.value = oldValue;
   });
 }
 
 function renderCatList() {
-  const el = document.getElementById("cat-list");
+  var el = document.getElementById("cat-list");
   if (!el) return;
   if (!categories.length) {
-    el.innerHTML = `<p style="color:var(--muted);font-size:.85rem;">No categories yet.</p>`;
+    el.innerHTML = '<p style="color:var(--muted);font-size:.85rem;">No categories yet.</p>';
     return;
   }
-  el.innerHTML = categories.map(c => `
-    <span class="cat-chip" style="background:${c.color}">
-      ${escHtml(c.name)}
-      <button class="del-cat" onclick="deleteCategory(${c.id})" title="Delete">✕</button>
-    </span>
-  `).join("");
+  el.innerHTML = categories.map(function(c) {
+    return '<span class="cat-chip" style="background:' + c.color + '">' +
+      escHtml(c.name) +
+      '<button class="del-cat" onclick="deleteCategory(' + c.id + ')" title="Delete">✕</button>' +
+      '</span>';
+  }).join("");
 }
 
 function openCatModal() {
@@ -789,16 +784,16 @@ function openCatModal() {
 }
 
 async function addCategory() {
-  const name  = document.getElementById("new-cat-name").value.trim();
-  const color = document.getElementById("new-cat-color").value;
+  var name  = document.getElementById("new-cat-name").value.trim();
+  var color = document.getElementById("new-cat-color").value;
 
   if (!name) { toast("Please enter a category name.", "error"); return; }
 
-  const res = await api("/categories", {
+  var res = await api("/categories", {
     method: "POST",
-    body: JSON.stringify({ name, color })
+    body: JSON.stringify({ name: name, color: color })
   });
-  const d = await res.json();
+  var d = await res.json();
 
   if (!res.ok) { toast(d.error || "Failed to add category", "error"); return; }
 
@@ -809,7 +804,7 @@ async function addCategory() {
 
 async function deleteCategory(id) {
   if (!confirm("Delete this category?")) return;
-  const res = await api(`/categories/${id}`, { method: "DELETE" });
+  var res = await api("/categories/" + id, { method: "DELETE" });
   if (!res.ok) { toast("Failed to delete category", "error"); return; }
   await loadCategories();
   toast("Category deleted");
@@ -817,20 +812,21 @@ async function deleteCategory(id) {
 
 /* ───────────────── LOAD EXPENSES ───────────────── */
 
-async function loadExpenses(page = 1) {
+async function loadExpenses(page) {
+  page = page || 1;
   currentPage = page;
 
-  const search   = document.getElementById("search-input").value;
-  const category = document.getElementById("cat-filter").value;
-  const sort     = document.getElementById("sort-select").value;
+  var search   = document.getElementById("search-input").value;
+  var category = document.getElementById("cat-filter").value;
+  var sort     = document.getElementById("sort-select").value;
 
-  const params = new URLSearchParams({ page, limit: 15, sort });
+  var params = new URLSearchParams({ page: page, limit: 15, sort: sort });
   if (search)   params.set("search",   search);
   if (category) params.set("category", category);
 
   try {
-    const res = await api(`/expenses?${params}`);
-    const d   = await res.json();
+    var res = await api("/expenses?" + params.toString());
+    var d   = await res.json();
     renderExpenses(d.data || []);
     renderPagination(d.pagination || { page: 1, totalPages: 1 });
   } catch (err) {
@@ -842,42 +838,41 @@ async function loadExpenses(page = 1) {
 /* ───────────────── RENDER EXPENSES ───────────────── */
 
 function renderExpenses(data) {
-  const list = document.getElementById("expense-list");
+  var list = document.getElementById("expense-list");
+  if (!list) return;
 
   if (!data || !data.length) {
-    list.innerHTML = `
-      <div class="empty">
-        <div class="empty-icon">🧾</div>
-        <p>No expenses found.<br>Add your first one!</p>
-      </div>`;
+    list.innerHTML =
+      '<div class="empty">' +
+      '<div class="empty-icon">🧾</div>' +
+      '<p>No expenses found.<br>Add your first one!</p>' +
+      '</div>';
     return;
   }
 
-  list.innerHTML = data.map(exp => {
-    const color    = getCatColor(exp.category);
-    const checked  = selectedIds.has(exp.id) ? "checked" : "";
-    const noteHtml = exp.note
-      ? `<div class="expense-note">${escHtml(exp.note)}</div>`
+  list.innerHTML = data.map(function(exp) {
+    var color    = getCatColor(exp.category);
+    var checked  = selectedIds.has(exp.id) ? "checked" : "";
+    var noteHtml = exp.note
+      ? '<div class="expense-note">' + escHtml(exp.note) + '</div>'
       : "";
 
-    return `
-      <div class="expense-item" id="exp-${exp.id}">
-        <input type="checkbox" ${checked}
-          style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex-shrink:0;"
-          onchange="toggleSelect(${exp.id}, this.checked)"/>
-        <div class="expense-cat-dot" style="background:${color}"></div>
-        <div class="expense-info">
-          <div class="expense-title">${escHtml(exp.title)}</div>
-          <div class="expense-meta">${escHtml(exp.category)} · ${fmtDate(exp.created_at)}</div>
-          ${noteHtml}
-        </div>
-        <div class="expense-amount">₹${fmt(exp.amount)}</div>
-        <div class="expense-actions">
-          <button class="btn btn-ghost btn-sm" onclick="openEditModal(${exp.id})" title="Edit">✏</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteExpense(${exp.id})" title="Delete">🗑</button>
-        </div>
-      </div>
-    `;
+    return '<div class="expense-item" id="exp-' + exp.id + '">' +
+      '<input type="checkbox" ' + checked +
+      ' style="accent-color:var(--accent);width:15px;height:15px;cursor:pointer;flex-shrink:0;"' +
+      ' onchange="toggleSelect(' + exp.id + ', this.checked)"/>' +
+      '<div class="expense-cat-dot" style="background:' + color + '"></div>' +
+      '<div class="expense-info">' +
+        '<div class="expense-title">' + escHtml(exp.title) + '</div>' +
+        '<div class="expense-meta">' + escHtml(exp.category) + ' · ' + fmtDate(exp.created_at) + '</div>' +
+        noteHtml +
+      '</div>' +
+      '<div class="expense-amount">₹' + fmt(exp.amount) + '</div>' +
+      '<div class="expense-actions">' +
+        '<button class="btn btn-ghost btn-sm" onclick="openEditModal(' + exp.id + ')" title="Edit">✏</button>' +
+        '<button class="btn btn-danger btn-sm" onclick="deleteExpense(' + exp.id + ')" title="Delete">🗑</button>' +
+      '</div>' +
+      '</div>';
   }).join("");
 }
 
@@ -890,8 +885,9 @@ function toggleSelect(id, checked) {
 }
 
 function updateBulkBar() {
-  const bar = document.getElementById("bulk-bar");
-  const cnt = document.getElementById("selected-count");
+  var bar = document.getElementById("bulk-bar");
+  var cnt = document.getElementById("selected-count");
+  if (!bar || !cnt) return;
   if (selectedIds.size > 0) {
     bar.classList.add("visible");
     cnt.textContent = selectedIds.size;
@@ -904,23 +900,23 @@ function clearSelection() {
   selectedIds.clear();
   updateBulkBar();
   document.querySelectorAll("#expense-list input[type=checkbox]")
-    .forEach(cb => (cb.checked = false));
+    .forEach(function(cb) { cb.checked = false; });
 }
 
 async function bulkDelete() {
   if (!selectedIds.size) return;
-  const count = selectedIds.size;
-  if (!confirm(`Delete ${count} expense(s)?`)) return;
+  var count = selectedIds.size;
+  if (!confirm("Delete " + count + " expense(s)?")) return;
 
   try {
-    const res = await api("/bulk-delete", {
+    var res = await api("/bulk-delete", {
       method: "POST",
-      body: JSON.stringify({ ids: [...selectedIds] })
+      body: JSON.stringify({ ids: Array.from(selectedIds) })
     });
     if (!res.ok) { toast("Bulk delete failed", "error"); return; }
     selectedIds.clear();
     updateBulkBar();
-    toast(`Deleted ${count} expense(s)`);
+    toast("Deleted " + count + " expense(s)");
     await refreshAll();
   } catch (err) {
     console.error(err);
@@ -931,24 +927,25 @@ async function bulkDelete() {
 /* ───────────────── PAGINATION ───────────────── */
 
 function renderPagination(p) {
-  const el = document.getElementById("pagination");
+  var el = document.getElementById("pagination");
+  if (!el) return;
   if (!p || p.totalPages <= 1) { el.innerHTML = ""; return; }
 
-  let html = `<div class="pagination">`;
-  for (let i = 1; i <= p.totalPages; i++) {
-    html += `<button class="page-btn ${i === p.page ? "active" : ""}" onclick="loadExpenses(${i})">${i}</button>`;
+  var html = '<div class="pagination">';
+  for (var i = 1; i <= p.totalPages; i++) {
+    html += '<button class="page-btn ' + (i === p.page ? "active" : "") + '" onclick="loadExpenses(' + i + ')">' + i + '</button>';
   }
-  html += `</div>`;
+  html += '</div>';
   el.innerHTML = html;
 }
 
 /* ───────────────── SAVE EXPENSE ───────────────── */
 
 async function saveExpense() {
-  const title    = document.getElementById("m-title").value.trim();
-  const amount   = document.getElementById("m-amount").value.trim();
-  const category = document.getElementById("m-category").value;
-  const note     = document.getElementById("m-note").value.trim();
+  var title    = document.getElementById("m-title").value.trim();
+  var amount   = document.getElementById("m-amount").value.trim();
+  var category = document.getElementById("m-category").value;
+  var note     = document.getElementById("m-note").value.trim();
 
   if (!title) {
     toast("Please enter a title.", "error");
@@ -961,20 +958,20 @@ async function saveExpense() {
     return;
   }
 
-  const saveBtn = document.getElementById("modal-save-btn");
+  var saveBtn = document.getElementById("modal-save-btn");
   saveBtn.textContent = "Saving…";
   saveBtn.disabled    = true;
 
   try {
-    const url    = editingId ? `/update-expense/${editingId}` : `/add-expense`;
-    const method = editingId ? "PUT" : "POST";
+    var url    = editingId ? "/update-expense/" + editingId : "/add-expense";
+    var method = editingId ? "PUT" : "POST";
 
-    const res = await api(url, {
-      method,
-      body: JSON.stringify({ title, amount: Number(amount), category, note })
+    var res = await api(url, {
+      method: method,
+      body: JSON.stringify({ title: title, amount: Number(amount), category: category, note: note })
     });
 
-    const d = await res.json();
+    var d = await res.json();
 
     if (!res.ok) {
       toast(d.error || "Failed to save expense.", "error");
@@ -999,7 +996,7 @@ async function deleteExpense(id) {
   if (!confirm("Delete this expense?")) return;
 
   try {
-    const res = await api(`/delete-expense/${id}`, { method: "DELETE" });
+    var res = await api("/delete-expense/" + id, { method: "DELETE" });
     if (!res.ok) { toast("Failed to delete", "error"); return; }
     toast("Expense deleted");
     await refreshAll();
@@ -1013,15 +1010,15 @@ async function deleteExpense(id) {
 
 async function openEditModal(id) {
   try {
-    const res = await api(`/expenses/${id}`);
+    var res = await api("/expenses/" + id);
     if (!res.ok) { toast("Could not load expense", "error"); return; }
-    const exp = await res.json();
+    var exp = await res.json();
 
     editingId = id;
     document.getElementById("modal-title").textContent = "Edit Expense";
-    document.getElementById("m-title").value           = exp.title    || "";
-    document.getElementById("m-amount").value          = exp.amount   || "";
-    document.getElementById("m-note").value            = exp.note     || "";
+    document.getElementById("m-title").value           = exp.title  || "";
+    document.getElementById("m-amount").value          = exp.amount || "";
+    document.getElementById("m-note").value            = exp.note   || "";
 
     await loadCategories();
     document.getElementById("m-category").value = exp.category || "";
@@ -1041,32 +1038,38 @@ function openAddModal() {
   document.getElementById("m-title").value           = "";
   document.getElementById("m-amount").value          = "";
   document.getElementById("m-note").value            = "";
-  const catSel = document.getElementById("m-category");
-  if (catSel.options.length) catSel.selectedIndex = 0;
+  var catSel = document.getElementById("m-category");
+  if (catSel && catSel.options.length) catSel.selectedIndex = 0;
   openModal("expense-modal");
 }
 
 /* ───────────────── MODALS ───────────────── */
 
 function openModal(id) {
-  document.getElementById(id).classList.add("open");
+  var el = document.getElementById(id);
+  if (el) el.classList.add("open");
 }
+
 function closeModal(id) {
-  document.getElementById(id).classList.remove("open");
+  var el = document.getElementById(id);
+  if (el) el.classList.remove("open");
 }
 
-document.querySelectorAll(".modal-overlay").forEach(overlay => {
-  overlay.addEventListener("click", function(e) {
-    if (e.target === this) closeModal(this.id);
+// Only attach modal/keyboard listeners when logged in (DOM has the overlays)
+if (token) {
+  document.querySelectorAll(".modal-overlay").forEach(function(overlay) {
+    overlay.addEventListener("click", function(e) {
+      if (e.target === this) closeModal(this.id);
+    });
   });
-});
 
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape") {
-    document.querySelectorAll(".modal-overlay.open")
-      .forEach(m => closeModal(m.id));
-  }
-});
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") {
+      document.querySelectorAll(".modal-overlay.open")
+        .forEach(function(m) { closeModal(m.id); });
+    }
+  });
+}
 
 /* ───────────────── REFRESH ALL ───────────────── */
 
@@ -1080,7 +1083,7 @@ async function refreshAll() {
 
 /* ───────────────── CHARTS ───────────────── */
 
-const CHART_COLORS = [
+var CHART_COLORS = [
   "#e8ff4d","#4dffb4","#ff4d6d","#4d9fff","#ff9f4d",
   "#b44dff","#4dfff0","#ff4db3","#a0ff4d","#4d6fff"
 ];
@@ -1088,28 +1091,27 @@ const CHART_COLORS = [
 async function loadChart(type) {
   currentChartType = type;
 
-  const endpointMap = {
+  var endpointMap = {
     daily:    "/chart-data",
     monthly:  "/chart-data/monthly",
     category: "/chart-data/category"
   };
 
   try {
-    const res  = await api(endpointMap[type] || "/chart-data");
-    const data = await res.json();
+    var res  = await api(endpointMap[type] || "/chart-data");
+    var data = await res.json();
 
     if (mainChart) { mainChart.destroy(); mainChart = null; }
 
-    const ctx = document.getElementById("mainChart");
+    var ctx = document.getElementById("mainChart");
+    if (!ctx) return;
 
-    const baseConfig = {
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: type === "category", labels: { color: "#eef0f5", font: { family: "'DM Mono'" } } },
-          tooltip: { backgroundColor: "#1e2229", titleColor: "#e8ff4d", bodyColor: "#eef0f5", borderColor: "#2a2f3a", borderWidth: 1 }
-        }
+    var baseOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: type === "category", labels: { color: "#eef0f5", font: { family: "'DM Mono'" } } },
+        tooltip: { backgroundColor: "#1e2229", titleColor: "#e8ff4d", bodyColor: "#eef0f5", borderColor: "#2a2f3a", borderWidth: 1 }
       }
     };
 
@@ -1117,18 +1119,15 @@ async function loadChart(type) {
       mainChart = new Chart(ctx, {
         type: "doughnut",
         data: {
-          labels: data.map(x => x.category),
+          labels: data.map(function(x) { return x.category; }),
           datasets: [{
-            data:            data.map(x => Number(x.total)),
-            backgroundColor: data.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+            data:            data.map(function(x) { return Number(x.total); }),
+            backgroundColor: data.map(function(_, i) { return CHART_COLORS[i % CHART_COLORS.length]; }),
             borderColor:     "#0d0f14",
             borderWidth:     2
           }]
         },
-        options: {
-          ...baseConfig.options,
-          cutout: "60%"
-        }
+        options: Object.assign({}, baseOptions, { cutout: "60%" })
       });
       return;
     }
@@ -1136,23 +1135,22 @@ async function loadChart(type) {
     mainChart = new Chart(ctx, {
       type: "bar",
       data: {
-        labels: data.map(x => x.date || x.month),
+        labels: data.map(function(x) { return x.date || x.month; }),
         datasets: [{
           label: type === "monthly" ? "Monthly Spend" : "Daily Spend",
-          data:            data.map(x => Number(x.total)),
+          data:            data.map(function(x) { return Number(x.total); }),
           backgroundColor: "#e8ff4d33",
           borderColor:     "#e8ff4d",
           borderWidth:     2,
           borderRadius:    4
         }]
       },
-      options: {
-        ...baseConfig.options,
+      options: Object.assign({}, baseOptions, {
         scales: {
           x: { ticks: { color: "#6b7280", maxRotation: 45 }, grid: { color: "#2a2f3a" } },
           y: { ticks: { color: "#6b7280" }, grid: { color: "#2a2f3a" } }
         }
-      }
+      })
     });
   } catch (err) {
     console.error("Chart error:", err);
@@ -1160,7 +1158,7 @@ async function loadChart(type) {
 }
 
 function switchChart(type, btn) {
-  document.querySelectorAll(".chart-tab").forEach(x => x.classList.remove("active"));
+  document.querySelectorAll(".chart-tab").forEach(function(x) { x.classList.remove("active"); });
   btn.classList.add("active");
   loadChart(type);
 }
@@ -1168,9 +1166,9 @@ function switchChart(type, btn) {
 /* ───────────────── DATE FILTER ───────────────── */
 
 async function filterByDate() {
-  const start = document.getElementById("filter-start").value;
-  const end   = document.getElementById("filter-end").value;
-  const el    = document.getElementById("filter-results");
+  var start = document.getElementById("filter-start").value;
+  var end   = document.getElementById("filter-end").value;
+  var el    = document.getElementById("filter-results");
 
   if (!start || !end) {
     toast("Please select both start and end dates.", "error");
@@ -1182,27 +1180,24 @@ async function filterByDate() {
   }
 
   try {
-    const res  = await api(`/expenses/filter/date?start=${start}&end=${end}`);
-    const data = await res.json();
+    var res  = await api("/expenses/filter/date?start=" + start + "&end=" + end);
+    var data = await res.json();
 
     if (!data.length) {
-      el.innerHTML = `<p style="color:var(--muted);font-size:.85rem;">No expenses in this range.</p>`;
+      el.innerHTML = '<p style="color:var(--muted);font-size:.85rem;">No expenses in this range.</p>';
       return;
     }
 
-    const total = data.reduce((s, e) => s + Number(e.amount), 0);
+    var total = data.reduce(function(s, e) { return s + Number(e.amount); }, 0);
 
-    el.innerHTML = `
-      <div class="filter-summary">
-        ${data.length} expense(s) · Total: ₹${fmt(total)}
-      </div>
-      ${data.map(exp => `
-        <div class="filter-result-item">
-          <span>${escHtml(exp.title)} <span style="color:var(--muted);font-size:.75rem;">${escHtml(exp.category)}</span></span>
-          <span style="color:var(--accent);font-family:var(--mono);">₹${fmt(exp.amount)}</span>
-        </div>
-      `).join("")}
-    `;
+    el.innerHTML =
+      '<div class="filter-summary">' + data.length + ' expense(s) · Total: ₹' + fmt(total) + '</div>' +
+      data.map(function(exp) {
+        return '<div class="filter-result-item">' +
+          '<span>' + escHtml(exp.title) + ' <span style="color:var(--muted);font-size:.75rem;">' + escHtml(exp.category) + '</span></span>' +
+          '<span style="color:var(--accent);font-family:var(--mono);">₹' + fmt(exp.amount) + '</span>' +
+          '</div>';
+      }).join("");
   } catch (err) {
     console.error(err);
     toast("Error fetching filtered results", "error");
@@ -1219,31 +1214,30 @@ function clearFilter() {
 
 function exportCSV() {
   if (!token) { toast("Please log in first", "error"); return; }
-  api("/export/csv").then(res => {
-    if (!res.ok) { toast("Export failed", "error"); return; }
+  api("/export/csv").then(function(res) {
+    if (!res.ok) { toast("Export failed", "error"); return null; }
     return res.blob();
-  }).then(blob => {
+  }).then(function(blob) {
     if (!blob) return;
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
+    var url = URL.createObjectURL(blob);
+    var a   = document.createElement("a");
     a.href     = url;
     a.download = "expenses.csv";
     a.click();
     URL.revokeObjectURL(url);
-  }).catch(() => toast("Export failed", "error"));
+  }).catch(function() { toast("Export failed", "error"); });
 }
 
 /* ───────────────── SEARCH DEBOUNCE ───────────────── */
 
 function debounceSearch() {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => loadExpenses(1), 400);
+  searchTimer = setTimeout(function() { loadExpenses(1); }, 400);
 }
 
 /* ───────────────── KICK OFF ───────────────── */
 
 if (token) init();
-
 </script>
 </body>
 </html>
