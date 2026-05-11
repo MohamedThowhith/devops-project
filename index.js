@@ -5,6 +5,7 @@ const cors = require("cors");
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { Parser } = require("json2csv");
 
 const app = express();
 
@@ -15,28 +16,12 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
-const isProduction = process.env.NODE_ENV === "production";
-
-/* ───────────────── DB ───────────────── */
-
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: isProduction
-    ? { rejectUnauthorized: false }
-    : false
-});
-
-/* ───────────────── ROOT ───────────────── */
-
-app.get("/", (req, res) => {
-  res.send("🚀 Expense Tracker API Running");
-});
-
-app.get("/health", (req, res) => {
-  res.json({
-    status: "OK",
-    uptime: process.uptime()
-  });
+  ssl:
+    process.env.NODE_ENV === "production"
+      ? { rejectUnauthorized: false }
+      : false,
 });
 
 /* ───────────────── AUTH MIDDLEWARE ───────────────── */
@@ -46,31 +31,34 @@ function authenticateToken(req, res, next) {
 
   if (!authHeader) {
     return res.status(401).json({
-      error: "Access denied"
+      error: "Access denied",
     });
   }
 
   const token = authHeader.split(" ")[1];
 
   try {
-    req.user = jwt.verify(
+    const verified = jwt.verify(
       token,
-      process.env.JWT_SECRET || "secret123"
+      process.env.JWT_SECRET
     );
+
+    req.user = verified;
 
     next();
 
   } catch (err) {
     return res.status(403).json({
-      error: "Invalid token"
+      error: "Invalid token",
     });
   }
 }
 
-/* ───────────────── INIT DATABASE ───────────────── */
+/* ───────────────── DATABASE INIT ───────────────── */
 
 async function initDB() {
 
+  /* USERS */
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -80,19 +68,21 @@ async function initDB() {
     )
   `);
 
+  /* CATEGORIES */
   await pool.query(`
     CREATE TABLE IF NOT EXISTS categories (
       id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      user_id INTEGER,
       name TEXT NOT NULL,
       color TEXT DEFAULT '#6366f1'
     )
   `);
 
+  /* EXPENSES */
   await pool.query(`
     CREATE TABLE IF NOT EXISTS expenses (
       id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      user_id INTEGER,
       title TEXT NOT NULL,
       amount NUMERIC NOT NULL,
       category TEXT DEFAULT 'General',
@@ -101,8 +91,41 @@ async function initDB() {
     )
   `);
 
+  /* SAFE MIGRATIONS */
+
+  await pool.query(`
+    ALTER TABLE expenses
+    ADD COLUMN IF NOT EXISTS user_id INTEGER
+  `);
+
+  await pool.query(`
+    ALTER TABLE expenses
+    ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'General'
+  `);
+
+  await pool.query(`
+    ALTER TABLE expenses
+    ADD COLUMN IF NOT EXISTS note TEXT DEFAULT ''
+  `);
+
+  await pool.query(`
+    ALTER TABLE expenses
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `);
+
+  await pool.query(`
+    ALTER TABLE categories
+    ADD COLUMN IF NOT EXISTS user_id INTEGER
+  `);
+
   console.log("✅ Database Ready");
 }
+
+/* ───────────────── ROOT ───────────────── */
+
+app.get("/", (req, res) => {
+  res.send("🚀 Expense Tracker API Running");
+});
 
 /* ───────────────── REGISTER ───────────────── */
 
@@ -114,7 +137,7 @@ app.post("/register", async (req, res) => {
 
     if (!name || !email || !password) {
       return res.status(400).json({
-        error: "All fields are required"
+        error: "All fields required",
       });
     }
 
@@ -125,7 +148,7 @@ app.post("/register", async (req, res) => {
 
     if (existing.rows.length) {
       return res.status(400).json({
-        error: "Email already exists"
+        error: "Email already exists",
       });
     }
 
@@ -141,6 +164,8 @@ app.post("/register", async (req, res) => {
     );
 
     const userId = user.rows[0].id;
+
+    /* DEFAULT CATEGORIES */
 
     await pool.query(
       `
@@ -159,17 +184,17 @@ app.post("/register", async (req, res) => {
     const token = jwt.sign(
       {
         id: userId,
-        email
+        email,
       },
-      process.env.JWT_SECRET || "secret123",
+      process.env.JWT_SECRET,
       {
-        expiresIn: "7d"
+        expiresIn: "7d",
       }
     );
 
     res.json({
       token,
-      user: user.rows[0]
+      user: user.rows[0],
     });
 
   } catch (err) {
@@ -177,7 +202,7 @@ app.post("/register", async (req, res) => {
     console.error(err);
 
     res.status(500).json({
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -197,7 +222,7 @@ app.post("/login", async (req, res) => {
 
     if (!user.rows.length) {
       return res.status(400).json({
-        error: "Invalid email"
+        error: "Invalid email",
       });
     }
 
@@ -208,18 +233,18 @@ app.post("/login", async (req, res) => {
 
     if (!valid) {
       return res.status(400).json({
-        error: "Invalid password"
+        error: "Invalid password",
       });
     }
 
     const token = jwt.sign(
       {
         id: user.rows[0].id,
-        email
+        email,
       },
-      process.env.JWT_SECRET || "secret123",
+      process.env.JWT_SECRET,
       {
-        expiresIn: "7d"
+        expiresIn: "7d",
       }
     );
 
@@ -228,8 +253,8 @@ app.post("/login", async (req, res) => {
       user: {
         id: user.rows[0].id,
         name: user.rows[0].name,
-        email: user.rows[0].email
-      }
+        email: user.rows[0].email,
+      },
     });
 
   } catch (err) {
@@ -237,7 +262,7 @@ app.post("/login", async (req, res) => {
     console.error(err);
 
     res.status(500).json({
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -251,11 +276,11 @@ app.get("/summary", authenticateToken, async (req, res) => {
     const r = await pool.query(
       `
       SELECT
-      COUNT(*)::int AS count,
-      COALESCE(SUM(amount),0)::float AS total,
-      COALESCE(AVG(amount),0)::float AS average,
-      COALESCE(MAX(amount),0)::float AS max,
-      COALESCE(MIN(amount),0)::float AS min
+        COUNT(*)::int AS count,
+        COALESCE(SUM(amount),0)::float AS total,
+        COALESCE(AVG(amount),0)::float AS average,
+        COALESCE(MAX(amount),0)::float AS max,
+        COALESCE(MIN(amount),0)::float AS min
       FROM expenses
       WHERE user_id=$1
       `,
@@ -266,10 +291,8 @@ app.get("/summary", authenticateToken, async (req, res) => {
 
   } catch (err) {
 
-    console.error(err);
-
     res.status(500).json({
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -280,115 +303,29 @@ app.get("/expenses", authenticateToken, async (req, res) => {
 
   try {
 
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 15;
-    const offset = (page - 1) * limit;
-
-    const search = req.query.search || "";
-    const category = req.query.category || "";
-    const sort = req.query.sort || "id";
-
-    const sortMap = {
-      id: "created_at DESC",
-      amount: "amount DESC",
-      title: "title ASC"
-    };
-
-    const orderBy = sortMap[sort] || "created_at DESC";
-
-    const conditions = ["user_id=$1"];
-    const values = [req.user.id];
-
-    let idx = 2;
-
-    if (search) {
-      conditions.push(`(title ILIKE $${idx} OR note ILIKE $${idx})`);
-      values.push(`%${search}%`);
-      idx++;
-    }
-
-    if (category) {
-      conditions.push(`category=$${idx}`);
-      values.push(category);
-      idx++;
-    }
-
-    const where = conditions.join(" AND ");
-
-    const countRes = await pool.query(
-      `
-      SELECT COUNT(*)::int AS total
-      FROM expenses
-      WHERE ${where}
-      `,
-      values
-    );
-
-    const total = countRes.rows[0].total;
-
-    const totalPages = Math.ceil(total / limit);
-
-    const dataRes = await pool.query(
-      `
-      SELECT *
-      FROM expenses
-      WHERE ${where}
-      ORDER BY ${orderBy}
-      LIMIT $${idx}
-      OFFSET $${idx + 1}
-      `,
-      [...values, limit, offset]
-    );
-
-    res.json({
-      data: dataRes.rows,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages
-      }
-    });
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message
-    });
-  }
-});
-
-/* ───────────────── GET SINGLE EXPENSE ───────────────── */
-
-app.get("/expenses/:id", authenticateToken, async (req, res) => {
-
-  try {
-
     const r = await pool.query(
       `
       SELECT *
       FROM expenses
-      WHERE id=$1 AND user_id=$2
+      WHERE user_id=$1
+      ORDER BY created_at DESC
       `,
-      [req.params.id, req.user.id]
+      [req.user.id]
     );
 
-    if (!r.rows.length) {
-      return res.status(404).json({
-        error: "Expense not found"
-      });
-    }
-
-    res.json(r.rows[0]);
+    res.json({
+      data: r.rows,
+      pagination: {
+        page: 1,
+        total: r.rows.length,
+        totalPages: 1,
+      },
+    });
 
   } catch (err) {
 
-    console.error(err);
-
     res.status(500).json({
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -403,20 +340,8 @@ app.post("/add-expense", authenticateToken, async (req, res) => {
       title,
       amount,
       category,
-      note
+      note,
     } = req.body;
-
-    if (!title || !amount) {
-      return res.status(400).json({
-        error: "Title and amount are required"
-      });
-    }
-
-    if (isNaN(amount) || Number(amount) <= 0) {
-      return res.status(400).json({
-        error: "Amount must be positive"
-      });
-    }
 
     const r = await pool.query(
       `
@@ -435,61 +360,9 @@ app.post("/add-expense", authenticateToken, async (req, res) => {
         title,
         amount,
         category || "General",
-        note || ""
-      ]
-    );
-
-    res.json(r.rows[0]);
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message
-    });
-  }
-});
-
-/* ───────────────── UPDATE EXPENSE ───────────────── */
-
-app.put("/update-expense/:id", authenticateToken, async (req, res) => {
-
-  try {
-
-    const {
-      title,
-      amount,
-      category,
-      note
-    } = req.body;
-
-    const r = await pool.query(
-      `
-      UPDATE expenses
-      SET
-      title=$1,
-      amount=$2,
-      category=$3,
-      note=$4
-      WHERE id=$5 AND user_id=$6
-      RETURNING *
-      `,
-      [
-        title,
-        amount,
-        category || "General",
         note || "",
-        req.params.id,
-        req.user.id
       ]
     );
-
-    if (!r.rows.length) {
-      return res.status(404).json({
-        error: "Expense not found"
-      });
-    }
 
     res.json(r.rows[0]);
 
@@ -498,7 +371,7 @@ app.put("/update-expense/:id", authenticateToken, async (req, res) => {
     console.error(err);
 
     res.status(500).json({
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -512,58 +385,20 @@ app.delete("/delete-expense/:id", authenticateToken, async (req, res) => {
     await pool.query(
       `
       DELETE FROM expenses
-      WHERE id=$1 AND user_id=$2
+      WHERE id=$1
+      AND user_id=$2
       `,
       [req.params.id, req.user.id]
     );
 
     res.json({
-      message: "Deleted"
+      message: "Deleted",
     });
 
   } catch (err) {
 
-    console.error(err);
-
     res.status(500).json({
-      error: err.message
-    });
-  }
-});
-
-/* ───────────────── BULK DELETE ───────────────── */
-
-app.post("/bulk-delete", authenticateToken, async (req, res) => {
-
-  try {
-
-    const { ids } = req.body;
-
-    if (!Array.isArray(ids) || !ids.length) {
-      return res.status(400).json({
-        error: "No ids provided"
-      });
-    }
-
-    await pool.query(
-      `
-      DELETE FROM expenses
-      WHERE id=ANY($1::int[])
-      AND user_id=$2
-      `,
-      [ids, req.user.id]
-    );
-
-    res.json({
-      message: "Deleted"
-    });
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -588,10 +423,8 @@ app.get("/categories", authenticateToken, async (req, res) => {
 
   } catch (err) {
 
-    console.error(err);
-
     res.status(500).json({
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -604,12 +437,6 @@ app.post("/categories", authenticateToken, async (req, res) => {
 
     const { name, color } = req.body;
 
-    if (!name) {
-      return res.status(400).json({
-        error: "Category name required"
-      });
-    }
-
     const r = await pool.query(
       `
       INSERT INTO categories(user_id,name,color)
@@ -619,7 +446,7 @@ app.post("/categories", authenticateToken, async (req, res) => {
       [
         req.user.id,
         name,
-        color || "#6366f1"
+        color || "#6366f1",
       ]
     );
 
@@ -627,165 +454,8 @@ app.post("/categories", authenticateToken, async (req, res) => {
 
   } catch (err) {
 
-    console.error(err);
-
     res.status(500).json({
-      error: err.message
-    });
-  }
-});
-
-/* ───────────────── DELETE CATEGORY ───────────────── */
-
-app.delete("/categories/:id", authenticateToken, async (req, res) => {
-
-  try {
-
-    await pool.query(
-      `
-      DELETE FROM categories
-      WHERE id=$1 AND user_id=$2
-      `,
-      [req.params.id, req.user.id]
-    );
-
-    res.json({
-      message: "Deleted"
-    });
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message
-    });
-  }
-});
-
-/* ───────────────── DAILY CHART ───────────────── */
-
-app.get("/chart-data", authenticateToken, async (req, res) => {
-
-  try {
-
-    const r = await pool.query(
-      `
-      SELECT
-      TO_CHAR(created_at,'YYYY-MM-DD') AS date,
-      SUM(amount)::float AS total
-      FROM expenses
-      WHERE user_id=$1
-      GROUP BY date
-      ORDER BY date DESC
-      LIMIT 30
-      `,
-      [req.user.id]
-    );
-
-    res.json(r.rows.reverse());
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message
-    });
-  }
-});
-
-/* ───────────────── MONTHLY CHART ───────────────── */
-
-app.get("/chart-data/monthly", authenticateToken, async (req, res) => {
-
-  try {
-
-    const r = await pool.query(
-      `
-      SELECT
-      TO_CHAR(created_at,'YYYY-MM') AS month,
-      SUM(amount)::float AS total
-      FROM expenses
-      WHERE user_id=$1
-      GROUP BY month
-      ORDER BY month DESC
-      LIMIT 12
-      `,
-      [req.user.id]
-    );
-
-    res.json(r.rows.reverse());
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message
-    });
-  }
-});
-
-/* ───────────────── CATEGORY CHART ───────────────── */
-
-app.get("/chart-data/category", authenticateToken, async (req, res) => {
-
-  try {
-
-    const r = await pool.query(
-      `
-      SELECT
-      category,
-      SUM(amount)::float AS total
-      FROM expenses
-      WHERE user_id=$1
-      GROUP BY category
-      ORDER BY total DESC
-      `,
-      [req.user.id]
-    );
-
-    res.json(r.rows);
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message
-    });
-  }
-});
-
-/* ───────────────── DATE FILTER ───────────────── */
-
-app.get("/expenses/filter/date", authenticateToken, async (req, res) => {
-
-  try {
-
-    const { start, end } = req.query;
-
-    const r = await pool.query(
-      `
-      SELECT *
-      FROM expenses
-      WHERE user_id=$1
-      AND created_at >= $2::date
-      AND created_at < ($3::date + interval '1 day')
-      ORDER BY created_at DESC
-      `,
-      [req.user.id, start, end]
-    );
-
-    res.json(r.rows);
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message
+      error: err.message,
     });
   }
 });
@@ -803,7 +473,7 @@ app.get("/export/csv", authenticateToken, async (req, res) => {
       amount,
       category,
       note,
-      TO_CHAR(created_at,'YYYY-MM-DD HH24:MI:SS') AS date
+      created_at
       FROM expenses
       WHERE user_id=$1
       ORDER BY created_at DESC
@@ -811,34 +481,19 @@ app.get("/export/csv", authenticateToken, async (req, res) => {
       [req.user.id]
     );
 
-    const rows = r.rows;
+    const parser = new Parser();
 
-    const header = "Title,Amount,Category,Note,Date\n";
+    const csv = parser.parse(r.rows);
 
-    const csv = rows.map(row => [
-      row.title,
-      row.amount,
-      row.category,
-      `"${(row.note || "").replace(/"/g, '""')}"`,
-      row.date
-    ].join(",")).join("\n");
+    res.header("Content-Type", "text/csv");
 
-    res.setHeader("Content-Type", "text/csv");
+    res.attachment("expenses.csv");
 
-    res.setHeader(
-      "Content-Disposition",
-      "attachment; filename=expenses.csv"
-    );
-
-    res.send(header + csv);
+    res.send(csv);
 
   } catch (err) {
 
-    console.error(err);
-
-    res.status(500).json({
-      error: err.message
-    });
+    res.status(500).send("Export failed");
   }
 });
 
@@ -848,19 +503,14 @@ async function startServer() {
 
   try {
 
-    await pool.query("SELECT NOW()");
-
-    console.log("✅ PostgreSQL Connected");
-
     await initDB();
 
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🚀 Server running on ${PORT}`);
     });
 
   } catch (err) {
 
-    console.error("❌ Failed to start server");
     console.error(err);
 
     process.exit(1);
@@ -868,13 +518,3 @@ async function startServer() {
 }
 
 startServer();
-
-/* ───────────────── GLOBAL ERROR HANDLING ───────────────── */
-
-process.on("unhandledRejection", (err) => {
-  console.error("Unhandled Rejection:", err);
-});
-
-process.on("uncaughtException", (err) => {
-  console.error("Uncaught Exception:", err);
-});
