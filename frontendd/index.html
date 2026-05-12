@@ -306,40 +306,9 @@
       color: var(--muted);
       font-family: var(--mono);
     }
-
-    /* ── Config banner ── */
-    #config-banner {
-      background: #2a1a00;
-      border: 1px solid #ff9f43;
-      border-radius: 10px;
-      padding: 14px 18px;
-      margin: 16px 24px;
-      font-size: .85rem;
-      color: #ff9f43;
-      display: none;
-      align-items: center;
-      gap: 12px;
-    }
-    #config-banner.show { display: flex; }
-    #config-banner input {
-      flex: 1;
-      background: #1a1000;
-      border-color: #ff9f43;
-      color: #ff9f43;
-      font-family: var(--mono);
-      font-size: .82rem;
-    }
-    #config-banner input::placeholder { color: #7a5020; }
   </style>
 </head>
 <body>
-
-<!-- ── Config Banner (shown when BASE_URL is not set) ── -->
-<div id="config-banner">
-  <span>⚙️ Enter your Render backend URL:</span>
-  <input id="backend-url-input" type="url" placeholder="https://your-service-name.onrender.com" />
-  <button class="btn btn-primary btn-sm" onclick="saveBackendUrl()">Save &amp; Reload</button>
-</div>
 
 <!-- Header -->
 <header>
@@ -442,8 +411,8 @@
     <div class="form-group">
       <label>Category</label>
       <select id="m-category">
-  <option value="General">General</option>
-</select>
+        <option value="General">General</option>
+      </select>
     </div>
     <div class="form-group">
       <label>Note</label>
@@ -480,33 +449,11 @@
 
 <script>
 /* ───────────────────────────────────────────────────────
-   BASE URL RESOLUTION
+   BASE URL — hardcoded to your Render backend.
+   Update this if you redeploy to a different service name.
 ─────────────────────────────────────────────────────── */
 
-function getBaseUrl() {
-  return (
-    localStorage.getItem("backendUrl") ||
-    (typeof window.BACKEND_URL !== "undefined" ? window.BACKEND_URL : null) ||
-    ""
-  );
-}
-
-var BASE_URL = getBaseUrl();
-
-// Show the config banner if no backend URL is configured
-if (!BASE_URL) {
-  document.getElementById("config-banner").classList.add("show");
-}
-
-function saveBackendUrl() {
-  var val = document.getElementById("backend-url-input").value.trim().replace(/\/$/, "");
-  if (!val || !val.startsWith("http")) {
-    alert("Please enter a valid URL starting with https://");
-    return;
-  }
-  localStorage.setItem("backendUrl", val);
-  location.reload();
-}
+var BASE_URL = "https://devops-project-nvdd.onrender.com";
 
 /* ───────────────── STATE ───────────────── */
 
@@ -524,12 +471,6 @@ var searchTimer  = null;
 
 if (!token) {
   document.body.innerHTML = `
-    <div id="config-banner" style="background:#2a1a00;border:1px solid #ff9f43;border-radius:10px;padding:14px 18px;margin:16px 24px;font-size:.85rem;color:#ff9f43;display:${BASE_URL ? 'none' : 'flex'};align-items:center;gap:12px;">
-      <span>⚙️ Enter your Render backend URL:</span>
-      <input id="backend-url-input" type="url" placeholder="https://your-service-name.onrender.com"
-        style="flex:1;background:#1a1000;border:1px solid #ff9f43;color:#ff9f43;font-family:monospace;font-size:.82rem;padding:8px 12px;border-radius:8px;outline:none;" />
-      <button onclick="saveBackendUrl()" style="padding:8px 14px;background:#e8ff4d;border:none;border-radius:6px;font-weight:700;cursor:pointer;font-family:inherit;">Save &amp; Reload</button>
-    </div>
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0d0f14;color:white;font-family:'Syne',sans-serif;">
       <div style="width:100%;max-width:400px;background:#161920;padding:30px;border-radius:16px;border:1px solid #2a2f3a;">
         <h2 style="margin-bottom:6px;font-size:1.4rem;">💸 XpenseTracker</h2>
@@ -572,10 +513,6 @@ if (!token) {
 
 async function api(url, options) {
   options = options || {};
-  if (!BASE_URL) {
-    toast("Backend URL not configured. Please set it in the banner above.", "error");
-    throw new Error("BASE_URL not set");
-  }
 
   options.headers = Object.assign(
     { "Content-Type": "application/json" },
@@ -601,7 +538,6 @@ async function register() {
   var password = document.getElementById("auth-password").value.trim();
   var msgEl    = document.getElementById("auth-msg");
 
-  if (!BASE_URL) { msgEl.textContent = "Please set your backend URL first (banner above)."; return; }
   if (!name)     { msgEl.textContent = "Please enter your name."; return; }
   if (!email)    { msgEl.textContent = "Please enter an email."; return; }
   if (!password) { msgEl.textContent = "Please enter a password."; return; }
@@ -620,7 +556,7 @@ async function register() {
     localStorage.setItem("user", JSON.stringify(data.user));
     location.reload();
   } catch (e) {
-    document.getElementById("auth-msg").textContent = "Network error. Check your backend URL and server status.";
+    document.getElementById("auth-msg").textContent = "Network error. Is the server running?";
   }
 }
 
@@ -629,7 +565,6 @@ async function login() {
   var password = document.getElementById("auth-password").value.trim();
   var msgEl    = document.getElementById("auth-msg");
 
-  if (!BASE_URL) { msgEl.textContent = "Please set your backend URL first (banner above)."; return; }
   if (!email)    { msgEl.textContent = "Please enter an email."; return; }
   if (!password) { msgEl.textContent = "Please enter a password."; return; }
 
@@ -647,7 +582,7 @@ async function login() {
     localStorage.setItem("user", JSON.stringify(data.user));
     location.reload();
   } catch (e) {
-    document.getElementById("auth-msg").textContent = "Network error. Check your backend URL and server status.";
+    document.getElementById("auth-msg").textContent = "Network error. Is the server running?";
   }
 }
 
@@ -668,14 +603,8 @@ if (token) {
       '<button class="btn btn-ghost btn-sm" onclick="exportCSV()">⬇ Export CSV</button>' +
       '<button class="btn btn-ghost btn-sm" onclick="openCatModal()">🏷 Categories</button>' +
       '<button class="btn btn-primary btn-sm" onclick="openAddModal()">+ Add Expense</button>' +
-      '<button class="btn btn-ghost btn-sm" onclick="changeBackendUrl()" title="Change backend URL">⚙️</button>' +
       '<button class="btn btn-danger btn-sm" onclick="logout()">Logout</button>';
   }
-}
-
-function changeBackendUrl() {
-  localStorage.removeItem("backendUrl");
-  location.reload();
 }
 
 /* ───────────────── INIT ───────────────── */
@@ -686,12 +615,8 @@ async function init() {
 
   try {
 
-    // Seed categories first
-    await api("/seed-categories", {
-      method: "POST"
-    });
+    await api("/seed-categories", { method: "POST" });
 
-    // THEN load categories
     await loadCategories();
 
     await Promise.all([
@@ -701,13 +626,8 @@ async function init() {
     ]);
 
   } catch (err) {
-
     console.error("Init error:", err);
-
-    toast(
-      "Failed to load data",
-      "error"
-    );
+    toast("Failed to load data", "error");
   }
 }
 
@@ -759,80 +679,42 @@ async function loadSummary() {
 /* ───────────────── CATEGORIES ───────────────── */
 
 async function loadCategories() {
-
   try {
-
     const res = await api("/categories");
-
-    if (!res.ok) {
-      toast("Failed to load categories", "error");
-      return;
-    }
-
+    if (!res.ok) { toast("Failed to load categories", "error"); return; }
     categories = await res.json();
-
     console.log("Loaded categories:", categories);
-
     populateCategorySelects();
-
     renderCatList();
-
   } catch (err) {
-
     console.error("Category Load Error:", err);
-
     toast("Could not load categories", "error");
   }
 }
 
 function getCatColor(name) {
-
   const cat = categories.find(c => c.name === name);
-
   return cat ? cat.color : "#6366f1";
 }
 
 function populateCategorySelects() {
+  const modalSelect  = document.getElementById("m-category");
+  const filterSelect = document.getElementById("cat-filter");
 
-  const modalSelect =
-    document.getElementById("m-category");
-
-  const filterSelect =
-    document.getElementById("cat-filter");
-
-  // CLEAR EXISTING OPTIONS
-  if (modalSelect) {
-    modalSelect.innerHTML = "";
-  }
-
-  if (filterSelect) {
-    filterSelect.innerHTML =
-      `<option value="">All Categories</option>`;
-  }
+  if (modalSelect)  modalSelect.innerHTML = "";
+  if (filterSelect) filterSelect.innerHTML = `<option value="">All Categories</option>`;
 
   categories.forEach(cat => {
-
-    // Modal dropdown
     if (modalSelect) {
-
       const opt = document.createElement("option");
-
       opt.value = cat.name;
-
       opt.textContent = cat.name;
-
       modalSelect.appendChild(opt);
     }
-
-    // Filter dropdown
     if (filterSelect) {
-
       const opt2 = document.createElement("option");
-
       opt2.value = cat.name;
-
       opt2.textContent = cat.name;
-
       filterSelect.appendChild(opt2);
     }
   });
@@ -841,113 +723,51 @@ function populateCategorySelects() {
 }
 
 function renderCatList() {
-
   const el = document.getElementById("cat-list");
-
   if (!el) return;
-
   if (!categories.length) {
-
-    el.innerHTML =
-      '<p style="color:var(--muted);font-size:.85rem;">No categories yet.</p>';
-
+    el.innerHTML = '<p style="color:var(--muted);font-size:.85rem;">No categories yet.</p>';
     return;
   }
-
   el.innerHTML = categories.map(c => `
     <span class="cat-chip" style="background:${c.color}">
       ${escHtml(c.name)}
-      <button
-        class="del-cat"
-        onclick="deleteCategory(${c.id})"
-        title="Delete"
-      >
-        ✕
-      </button>
+      <button class="del-cat" onclick="deleteCategory(${c.id})" title="Delete">✕</button>
     </span>
   `).join("");
 }
 
 function openCatModal() {
-
   renderCatList();
-
   openModal("cat-modal");
 }
 
 async function addCategory() {
-
-  const name =
-    document.getElementById("new-cat-name").value.trim();
-
-  const color =
-    document.getElementById("new-cat-color").value;
-
-  if (!name) {
-
-    toast("Please enter category name", "error");
-
-    return;
-  }
-
+  const name  = document.getElementById("new-cat-name").value.trim();
+  const color = document.getElementById("new-cat-color").value;
+  if (!name) { toast("Please enter category name", "error"); return; }
   try {
-
-    const res = await api("/categories", {
-      method: "POST",
-      body: JSON.stringify({
-        name,
-        color
-      })
-    });
-
+    const res  = await api("/categories", { method: "POST", body: JSON.stringify({ name, color }) });
     const data = await res.json();
-
-    if (!res.ok) {
-
-      toast(data.error || "Failed", "error");
-
-      return;
-    }
-
+    if (!res.ok) { toast(data.error || "Failed", "error"); return; }
     document.getElementById("new-cat-name").value = "";
-
     await loadCategories();
-
     toast("Category added");
-
   } catch (err) {
-
     console.error(err);
-
     toast("Error adding category", "error");
   }
 }
 
 async function deleteCategory(id) {
-
   if (!confirm("Delete this category?")) return;
-
   try {
-
-    const res = await api("/categories/" + id, {
-      method: "DELETE"
-    });
-
-    if (!res.ok) {
-
-      toast("Delete failed", "error");
-
-      return;
-    }
-
+    const res = await api("/categories/" + id, { method: "DELETE" });
+    if (!res.ok) { toast("Delete failed", "error"); return; }
     await loadCategories();
-
     toast("Category deleted");
-
   } catch (err) {
-
     console.error(err);
-
     toast("Delete error", "error");
   }
 }
@@ -1136,7 +956,6 @@ async function saveExpense() {
 
 async function deleteExpense(id) {
   if (!confirm("Delete this expense?")) return;
-
   try {
     var res = await api("/delete-expense/" + id, { method: "DELETE" });
     if (!res.ok) { toast("Failed to delete", "error"); return; }
@@ -1175,26 +994,17 @@ async function openEditModal(id) {
 /* ───────────────── ADD MODAL ───────────────── */
 
 async function openAddModal() {
-
   editingId = null;
-
-  document.getElementById("modal-title").textContent =
-    "Add Expense";
-
-  document.getElementById("m-title").value = "";
-
+  document.getElementById("modal-title").textContent = "Add Expense";
+  document.getElementById("m-title").value  = "";
   document.getElementById("m-amount").value = "";
+  document.getElementById("m-note").value   = "";
 
-  document.getElementById("m-note").value = "";
-
-  // FORCE LOAD CATEGORIES AGAIN
   await loadCategories();
 
   const catSel = document.getElementById("m-category");
 
-  // fallback categories
   if (!categories.length) {
-
     categories = [
       { name: "Food", color: "#ff6b6b" },
       { name: "Travel", color: "#4ecdc4" },
@@ -1203,15 +1013,10 @@ async function openAddModal() {
       { name: "Entertainment", color: "#ff9f43" },
       { name: "General", color: "#6366f1" }
     ];
-
     populateCategorySelects();
   }
 
-  if (catSel.options.length > 0) {
-    catSel.selectedIndex = 0;
-  }
-
-  console.log("Dropdown options:", catSel.innerHTML);
+  if (catSel.options.length > 0) catSel.selectedIndex = 0;
 
   openModal("expense-modal");
 }
@@ -1228,7 +1033,6 @@ function closeModal(id) {
   if (el) el.classList.remove("open");
 }
 
-// Only attach modal/keyboard listeners when logged in (DOM has the overlays)
 if (token) {
   document.querySelectorAll(".modal-overlay").forEach(function(overlay) {
     overlay.addEventListener("click", function(e) {
@@ -1343,14 +1147,8 @@ async function filterByDate() {
   var end   = document.getElementById("filter-end").value;
   var el    = document.getElementById("filter-results");
 
-  if (!start || !end) {
-    toast("Please select both start and end dates.", "error");
-    return;
-  }
-  if (start > end) {
-    toast("Start date must be before end date.", "error");
-    return;
-  }
+  if (!start || !end) { toast("Please select both start and end dates.", "error"); return; }
+  if (start > end)    { toast("Start date must be before end date.", "error"); return; }
 
   try {
     var res  = await api("/expenses/filter/date?start=" + start + "&end=" + end);
@@ -1410,7 +1208,7 @@ function debounceSearch() {
 
 /* ───────────────── KICK OFF ───────────────── */
 
-if (token && BASE_URL) {
+if (token) {
   init();
 }
 </script>
